@@ -27,6 +27,7 @@ jobs:
 
       - name: Send email
         env:
-          EMAIL_ID: ${{ secrets.EMAIL_ID }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          GMAIL_SENDER: ${{ secrets.GMAIL_SENDER }}
+          GMAIL_TO: ${{ secrets.GMAIL_TO }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         run: python 인사변동_메일발송.py
