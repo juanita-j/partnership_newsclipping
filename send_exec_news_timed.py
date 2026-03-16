@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-하루 4회(10시/12시/15시/18시 KST) 발송용: 직전 업데이트 이후 기사만 수집해 메일 본문 생성.
-- 오전 10시 → 전날 18:00 KST 이후 기사
-- 12시 → 당일 10:00 KST 이후
-- 15시 → 당일 12:00 KST 이후
-- 18시 → 당일 15:00 KST 이후
+하루 4회(10/12/15/18시 KST) 또는 수시 발송용: 기사 수집 후 메일 본문 생성.
+- 정기(스케줄): 직전 발송 시각 이후 기사 (10시→전날18시, 12시→10시, 15시→12시, 18시→15시)
+- 수시(workflow_dispatch): 당일 00:00 KST ~ 요청 시각까지 기사 (env REQUEST_SCOPE=today)
 제목: 인사변동 업데이트 (yy/mm/dd)
 본문: 상위 bullet = 한줄 요약 + 링크, 하위 bullet = 주요 내용 3~5개
 """
@@ -44,20 +42,20 @@ def now_kst() -> datetime:
     return datetime.now(KST)
 
 
-def get_since_datetime(now: datetime) -> datetime:
-    """현재 실행 시각(KST) 기준으로 '직전 업데이트' 시각 반환.
-    10시→전날18시, 12시→당일10시, 15시→당일12시, 18시→당일15시
+def get_since_datetime(now: datetime, since_today_midnight: bool = False) -> datetime:
+    """'직전 업데이트' 시각 반환.
+    since_today_midnight=True(수시 발송): 당일 00:00 KST
+    False(정기 발송): 10시→전날18시, 12시→당일10시, 15시→당일12시, 18시→당일15시
     """
+    if since_today_midnight:
+        return now.replace(hour=0, minute=0, second=0, microsecond=0)
     h = now.hour
     if h < 12:
-        # 10시/11시 발송 구간: 직전 = 전날 18시
         since = (now - timedelta(days=1)).replace(hour=18, minute=0, second=0, microsecond=0)
-    elif h < 12:
-        since = now.replace(hour=10, minute=0, second=0, microsecond=0)
     elif h < 15:
-        since = now.replace(hour=12, minute=0, second=0, microsecond=0)
+        since = now.replace(hour=10, minute=0, second=0, microsecond=0)
     elif h < 18:
-        since = now.replace(hour=15, minute=0, second=0, microsecond=0)
+        since = now.replace(hour=12, minute=0, second=0, microsecond=0)
     else:
         since = now.replace(hour=15, minute=0, second=0, microsecond=0)
     return since
@@ -173,9 +171,12 @@ def main() -> int:
         return 1
 
     now = now_kst()
-    since = get_since_datetime(now)
+    # 수시 발송(REQUEST_SCOPE=today): 당일 00:00~현재. 정기: 직전 발송 시각 이후
+    since_today = os.environ.get("REQUEST_SCOPE", "").strip().lower() == "today"
+    since = get_since_datetime(now, since_today_midnight=since_today)
     print(f"실행 시각(KST): {now}")
-    print(f"이번 구간: {since} ~ 이후 기사만 수집")
+    print(f"구간: {'당일 00:00 ~' if since_today else '직전 발송 ~'} 이후 기사 수집")
+    print(f"since = {since}")
 
     articles = collect_articles_since(client_id, client_secret, since)
     subject = build_subject(now)

@@ -11,6 +11,7 @@ on:
     - cron: '0 3 * * *'
     - cron: '0 6 * * *'
     - cron: '0 9 * * *'
+  # 수시 발송: "Run workflow" 클릭 → 당일 00:00~요청 시각 기사로 메일 발송
   workflow_dispatch:
 
 env:
@@ -42,12 +43,14 @@ jobs:
           pip install -r requirements.txt
           pip install python-dotenv
 
-      - name: Collect news (Naver API, since last run)
+      - name: Collect news (Naver API)
         run: python send_exec_news_timed.py
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           TZ: Asia/Seoul
+          # 수시 발송(수동 Run) 시 당일 00:00~현재 기사. 정기 스케줄 시 직전 발송 이후
+          REQUEST_SCOPE: ${{ github.event_name == 'workflow_dispatch' && 'today' || 'scheduled' }}
 
       - name: Send mail (Gmail)
         run: python send_email_from_json.py
