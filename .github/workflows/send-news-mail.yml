@@ -1,7 +1,6 @@
 # 매일 새 뉴스 수집 후 Gmail로 임원인사 뉴스 메일 발송
 # 필수 Secrets: GMAIL_APP_PASSWORD, NAVER_CLIENT_ID, NAVER_CLIENT_SECRET
 # 선택 Secrets: GMAIL_SENDER, GMAIL_TO (없으면 스크립트 기본값 사용)
-# ※ GitHub Secret 이름이 Gmail_app_password 인 경우 아래에서 Gmail_app_password 로 통일하세요.
 
 name: send news mail
 
@@ -12,7 +11,6 @@ on:
   workflow_dispatch:
 
 env:
-  # Node.js 20 deprecation 대응 (2026년 6월부터 Node 24 기본 적용)
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
@@ -21,7 +19,6 @@ jobs:
     env:
       NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
       NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
-      # Secret 이름이 Gmail_app_password 이면 secrets.Gmail_app_password 로 변경
       GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
       GMAIL_SENDER: ${{ secrets.GMAIL_SENDER }}
       GMAIL_TO: ${{ secrets.GMAIL_TO }}
