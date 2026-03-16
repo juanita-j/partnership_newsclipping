@@ -2,7 +2,7 @@
 # 필수 Secrets: GMAIL_APP_PASSWORD, NAVER_CLIENT_ID, NAVER_CLIENT_SECRET
 # 선택 Secrets: GMAIL_SENDER, GMAIL_TO (없으면 스크립트 기본값 사용)
 
-name: send news mail
+name: Send News Mail
 
 on:
   schedule:
