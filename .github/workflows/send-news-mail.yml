@@ -68,3 +68,15 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           GMAIL_SENDER: ${{ secrets.GMAIL_SENDER }}
           GMAIL_TO: ${{ secrets.GMAIL_TO }}
+
+      - name: Set archive cache key (KST year-month)
+        run: echo "YM=$(TZ=Asia/Seoul date +%Y-%m)" >> $GITHUB_ENV
+
+      - name: Restore monthly archive cache
+        uses: actions/cache@v4
+        with:
+          path: .monthly_archives
+          key: monthly-archives-${{ runner.os }}-${{ env.YM }}
+
+      - name: Archive daily summary to monthly
+        run: python archive_monthly_items.py
