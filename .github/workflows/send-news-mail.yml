@@ -1,13 +1,16 @@
-# 매일 새 뉴스 수집 후 Gmail로 임원인사 뉴스 메일 발송
+# 하루 4회(한국 10/12/15/18시) 임원인사 뉴스 메일 발송
+# 직전 업데이트 이후 기사만 포함. 제목: 인사변동 업데이트 (yy/mm/dd)
 # 필수 Secrets: GMAIL_APP_PASSWORD, NAVER_CLIENT_ID, NAVER_CLIENT_SECRET
-# 선택 Secrets: GMAIL_SENDER, GMAIL_TO (없으면 스크립트 기본값 사용)
 
 name: Send News Mail
 
 on:
   schedule:
-    # 매일 01:00 UTC = 한국 10:00
+    # KST 10시, 12시, 15시, 18시 = UTC 01:00, 03:00, 06:00, 09:00
     - cron: '0 1 * * *'
+    - cron: '0 3 * * *'
+    - cron: '0 6 * * *'
+    - cron: '0 9 * * *'
   workflow_dispatch:
 
 env:
@@ -17,6 +20,7 @@ jobs:
   send-mail:
     runs-on: ubuntu-latest
     env:
+      TZ: Asia/Seoul
       NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
       NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
       GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
@@ -38,11 +42,12 @@ jobs:
           pip install -r requirements.txt
           pip install python-dotenv
 
-      - name: Collect news (Naver API)
-        run: python send_daily_exec_news.py
+      - name: Collect news (Naver API, since last run)
+        run: python send_exec_news_timed.py
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          TZ: Asia/Seoul
 
       - name: Send mail (Gmail)
         run: python send_email_from_json.py
