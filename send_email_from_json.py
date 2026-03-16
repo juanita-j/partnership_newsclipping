@@ -106,37 +106,113 @@ def _bullets_from_item(it: dict) -> list[str]:
     return out[:10] if out else ["요약 없음"]
 
 
+def _action_line(it: dict) -> str:
+    """'사람명': 인사내용 형식. 브리핑 스타일."""
+    person = _format_person_name(it.get("대상 인물") or "")
+    action_type = (it.get("인사 유형") or "").strip()
+    prev = (it.get("기존 직책") or "").strip()
+    new = (it.get("신규 직책") or "").strip()
+    if prev and new:
+        part = f"{prev} → {new}"
+    elif prev:
+        part = f"{prev} {action_type}"
+    elif new:
+        part = f"{new} {action_type}"
+    else:
+        part = action_type
+    if person:
+        return f"{person}: {part}"
+    return part
+
+
 def _build_html_from_summary(items: list[dict], subject: str) -> str:
-    """제목 + 날짜/링크 + 불렛 요약 구조의 HTML 본문 생성."""
+    """회사별로 묶고, 회사당 [임원인사] / [조직개편] 섹션으로 HTML 본문 생성."""
+    from collections import defaultdict
+    by_company: dict[str, list[dict]] = defaultdict(list)
+    for it in items:
+        company = (it.get("회사명") or "").strip() or "(회사명 없음)"
+        by_company[company].append(it)
+
     lines = [
         "<!DOCTYPE html><html><head><meta charset='utf-8'></head><body>",
         f"<h2>{subject}</h2>",
         "<ul>",
     ]
-    for it in items:
-        key_points = it.get("중요 포인트") or []
-        title_text = _title_from_key_points(key_points, 60)
-        if not title_text:
-            title_text = (it.get("2문장 요약") or "").strip()[:60] or "인사 소식"
-            if len((it.get("2문장 요약") or "").strip()) > 60:
-                title_text = title_text.rstrip() + "..."
-        date_mmdd = _pubdate_to_mmdd(it.get("pubDate") or "")
-        url = (it.get("기사 URL") or "").strip()
+    for company in sorted(by_company.keys(), key=lambda x: (x.startswith("("), x)):
+        group = by_company[company]
+        rep_date = ""
+        rep_url = ""
+        for it in group:
+            if it.get("pubDate"):
+                rep_date = _pubdate_to_mmdd(it.get("pubDate") or "")
+            if (it.get("기사 URL") or "").strip():
+                rep_url = (it.get("기사 URL") or "").strip()
+            if rep_date and rep_url:
+                break
+
+        exec_items = []
+        org_changes_set = set()
+        exec_lines_out = []
+        for it in group:
+            cf = it.get("category_flags") or {}
+            is_exec = cf.get("exec_personnel", True)
+            is_org = cf.get("org_restructuring", False)
+            if is_exec and (it.get("대상 인물") or it.get("인사 유형")):
+                exec_items.append(it)
+            if is_org:
+                for oc in it.get("org_changes") or []:
+                    if oc and str(oc).strip():
+                        org_changes_set.add(str(oc).strip())
+        org_changes_list = sorted(org_changes_set)
+
+        has_exec = bool(exec_items)
+        has_org = bool(org_changes_list)
+        if not has_exec and not has_org:
+            has_exec = True
+            exec_items = group
+
+        if has_exec and has_org:
+            section_label = f"{company}, 임원인사 및 조직개편 진행"
+        elif has_org:
+            section_label = f"{company}, 조직개편 진행"
+        else:
+            section_label = f"{company}, 임원인사 진행"
 
         lines.append("  <li>")
         lines.append("    <p>")
-        lines.append(f"      <strong>{title_text}</strong>")
-        if date_mmdd:
-            lines.append(f"      &nbsp; ({date_mmdd})")
-        if url:
-            lines.append(f'      &nbsp; <a href="{url}">기사 보기</a>')
+        lines.append(f"      <strong>{section_label}</strong>")
+        if rep_date:
+            lines.append(f"      &nbsp; ({rep_date})")
+        if rep_url:
+            lines.append(f'      &nbsp; <a href="{rep_url}">기사 보기</a>')
         lines.append("    </p>")
-        bullets = _bullets_from_item(it)
-        if bullets:
+        if has_exec and exec_items:
+            seen_exec = set()
+            exec_lines_out = []
+            for it in exec_items:
+                line = _action_line(it)
+                if line and line not in seen_exec:
+                    seen_exec.add(line)
+                    exec_lines_out.append(line)
+            if exec_lines_out:
+                lines.append("    <p><strong>[임원인사]</strong></p>")
+                lines.append("    <ul>")
+                for line in exec_lines_out:
+                    lines.append(f"      <li>{line}</li>")
+                lines.append("    </ul>")
+        if has_org and org_changes_list:
+            lines.append("    <p><strong>[조직개편]</strong></p>")
             lines.append("    <ul>")
-            for b in bullets:
-                lines.append(f"      <li>{b}</li>")
+            for oc in org_changes_list:
+                lines.append(f"      <li>{oc}</li>")
             lines.append("    </ul>")
+        if has_exec and exec_items and not exec_lines_out and not org_changes_list:
+            bullets = _bullets_from_item(group[0])
+            if bullets:
+                lines.append("    <ul>")
+                for b in bullets:
+                    lines.append(f"      <li>{b}</li>")
+                lines.append("    </ul>")
         lines.append("  </li>")
     lines.append("</ul></body></html>")
     return "\n".join(lines)

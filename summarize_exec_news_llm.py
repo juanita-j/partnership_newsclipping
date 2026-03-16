@@ -18,68 +18,66 @@ NEWS_RAW_JSON = OUTPUT_DIR / "news_raw.json"
 NEWS_SUMMARY_JSON = OUTPUT_DIR / "news_summary.json"
 DEBUG_SUMMARY_JSON = OUTPUT_DIR / "debug_summary.json"
 
-# LLM 출력 스키마 (반드시 JSON 파싱 가능하도록 지시)
-# relevance_score: 5=대표/사장급 명확 선임, 3~4=이사회/사외이사/거버넌스 인사, 1~2=간접 언급만(가능하면 제외)
-# bullet_points: 브리핑 스타일 명사형, 2~5개. 경력은 (경력: 직책1, 직책2) 형식. 인물명은 '이름'.
+# LLM 출력 스키마. is_exec_news=true 이면 포함(임원인사 또는 조직개편 또는 둘 다).
+# category_flags: exec_personnel(임원인사), org_restructuring(주요 조직개편). 둘 다 해당 가능.
+# org_changes: 조직개편만 있을 때도 채움. 본부/실/센터/사업부/부문 단위.
 SUMMARY_SCHEMA = """
 {
   "is_exec_news": true | false,
   "reason": "판별 이유 한 줄 (제외 시에만)",
+  "category_flags": { "exec_personnel": true|false, "org_restructuring": true|false },
   "company": "회사명",
-  "personnel_type": "인사 유형 (예: 선임, 영입, 승진, 이동, 사임, 연임 포기, 이사회 개편)",
+  "personnel_type": "인사 유형 (임원인사 해당 시)",
   "person_name": "대상 인물 이름",
   "previous_role": "기존 직책 (불명이면 빈 문자열)",
   "new_role": "신규 직책 (불명이면 빈 문자열)",
+  "org_changes": ["조직개편 내용1", "조직개편 내용2"],
   "summary_2sent": "2문장 요약",
   "key_points": ["중요 포인트1", "중요 포인트2"],
   "bullet_points": ["브리핑 문장 또는 (경력: 직책1, 직책2)", "..."],
-  "relevance_score": 1-5 (5=대표/사장급, 3-4=이사회/거버넌스, 1-2=불명확 시 제외 권장),
+  "relevance_score": 1-5,
   "article_url": "기사 URL"
 }
 """
 
-SYSTEM_PROMPT = """당신은 한국 기업의 경영·거버넌스 인사 뉴스를 분류·요약하는 전문가입니다.
+SYSTEM_PROMPT = """당신은 한국 기업의 **임원인사**와 **주요 조직개편** 뉴스를 분류·요약하는 전문가입니다.
 
-[포함할 기사]
-- 대표이사, 사장, 부사장, 전무, 상무 등 주요 경영진 인사(선임·영입·승진·이동·사임)
-- 사내이사·사외이사·이사회 구성원의 선임·연임·연임 포기·교체·이사회 개편
-- 이사회 물갈이, 이사진 개편, 거버넌스 개편과 직접 연결된 인사변동
-- 본문이 없어도 **제목+요약만으로** 회사명·인사 행위·대상(인물/직위)이 드러나면 포함 가능
-- 기존 직책/신규 직책이 모두 명확하지 않아도, 회사+인사변동+대상이 어느 정도 있으면 포함
+[포함할 기사] 두 범주 중 하나 이상 해당 시 포함.
+1) 임원인사: 대표이사·사장·부사장·전무·상무 선임/영입/승진/이동/사임, 사내·사외이사 연임/연임 포기/교체, 이사회 개편
+2) 주요 조직개편: 본부/실/센터/사업부/부문 신설·통합·폐지·개편·재편, 조직 슬림화·통폐합, TFT/전담조직 신설, AI·글로벌 조직 강화, 자회사/법인 단위 재편. **조직개편만 있는 기사도 포함.**
+
+본문이 없어도 제목+요약만으로 판별 가능. 회사 차원의 주요 조직만 포함(본부·실·센터·사업부·부문·위원회·전사/자회사 단위).
 
 [반드시 제외할 기사]
-- 스포츠 선수 영입·이적·계약 (야구, 축구 등 팀 선수 영입)
-- 연예인·모델·홍보대사·외부 연사 영입/발탁
-- 연봉·보수·성과급·급여 공시·보수 43억원 등 보수/급여 중심 기사
-- 단순 실적 발표, CEO 인터뷰, 행사/이벤트만 다룬 기사 (인사변동 없음)
+- 스포츠 선수 영입·이적, 연예인·홍보대사 영입, 연봉·보수 공시
+- 단순 인력 충원, 일반 채용 확대
+- 행사성 TF, 프로젝트성 임시 태스크포스
+- 팀/파트/셀 등 소규모 단위 변경, 단순 명칭 변경만 있는 기사
+- 단순 실적 발표, 인터뷰, 전망/코멘트만 있는 기사
 
 [관련도 점수]
 - 5: 대표·사장급 명확한 선임/사임
 - 3~4: 사외이사 연임 포기, 이사회 개편, 사내이사 신규 선임 등 거버넌스 인사
 - 1~2: 인사변동이 불명확하거나 단순 언급만 → is_exec_news: false 권장
 
-[bullet_points] 브리핑 스타일, 2~5개.
-- 문체: **명사형 브리핑**. "~했다"→"~함", "~했다."→"~함", "~하고 있다"→"~중", "~될 것으로 보인다"→"~전망". 예: '윤종수' KT 사외이사 연임 포기함.
-- 경력: 인물의 이전 직책·주요 경력이 있으면 괄호 문장 하나로 추가. 형식: (경력: 직책1, 직책2). 인물 이름은 넣지 않음. 예: (경력: KT 이사회 의장, ESG위원회 위원장).
-- 포함: 인사 변동 사실, 인사 배경, 회사 지배구조 변화. 경력 있으면 포함.
-- 제외: 단순 논란 언급, 기대·의견 표현, 추측성 문장(~일 것으로 보인다, ~가능성이 있다). 인사 사실·배경만 유지.
-- 약어: 한국 기업 지배구조 관련 약어는 풀어씀. 예: 이추위→이사회 추천위원회. 처음 등장 시 풀네임 사용.
-- 인물명: 대상 인물이 있으면 작은따옴표(')로 감쌈.
+[category_flags] exec_personnel: 임원인사 해당 여부. org_restructuring: 주요 조직개편 해당 여부. 둘 다 true일 수 있음.
+[org_changes] 조직개편 해당 시 배열로 채움. 예: ["AI전략본부 신설", "글로벌사업부 통합"]. 본부/실/센터/사업부/부문 단위만.
+
+[bullet_points] 브리핑 스타일, 2~5개. 명사형 또는 "~함"체. 인사·조직 사실만, 논란/의견/추측 제외.
+- 임원인사 예: '윤종수' 사외이사 연임 포기, '홍길동' 대표이사 내정
+- 조직개편 예: AI전략본부 신설, 글로벌사업부 통합. 경력: (경력: 직책1, 직책2). 인물명은 작은따옴표(')로 감쌈.
 
 [출력]
 반드시 유효한 JSON 한 덩어리만 출력. 앞뒤 설명·마크다운 없이."""
 
-USER_PROMPT_TEMPLATE = """아래 뉴스가 **기업 경영진·이사회·거버넌스 인사변동** 기사인지 판별해 주세요.
-본문이 "(없음)"이어도 제목과 요약만으로 판단합니다. 해당 시에만 JSON을 채우고, 아니면 is_exec_news: false와 reason만 채우세요.
+USER_PROMPT_TEMPLATE = """아래 뉴스가 **임원인사** 또는 **주요 조직개편**(본부/실/센터/사업부 신설·통합·폐지·개편 등) 기사인지 판별해 주세요.
+본문이 "(없음)"이어도 제목과 요약만으로 판단합니다. 해당 시 category_flags와 org_changes를 채우고, 아니면 is_exec_news: false와 reason만 채우세요.
 
 제목: {title}
 요약: {description}
 본문(일부): {body}
 
-[참고 예시]
-- "KT 윤종수 사외이사 연임 포기", "이사회 물갈이" → 포함. bullet_points 예: ["'윤종수' KT 사외이사 연임 포기함", "KT 이사회 개편 신호로 해석됨", "(경력: KT 이사회 의장, ESG위원회 위원장)"]
-- "삼성, 오러클린 긴급 영입" (야구 선수) → 제외 (스포츠 선수 영입)
-- "정유경 신세계 회장 보수 43억원" → 제외 (보수/연봉 공시)
+[참고] 임원인사만: exec_personnel=true, org_restructuring=false. 조직개편만: exec_personnel=false, org_restructuring=true, org_changes 채움. 둘 다: 둘 다 true. 스포츠/연예/보수/채용확대/소규모 팀 변경 → 제외.
 
 출력 형식 (이 키만 사용, JSON만 출력):
 {schema}"""
@@ -133,14 +131,25 @@ def _parse_llm_response(text: str, url: str) -> tuple[dict | None, dict]:
     company = (data.get("company") or "").strip()
     person = (data.get("person_name") or "").strip()
     action_type = (data.get("personnel_type") or "").strip()
-    if not data.get("is_exec_news"):
+    cf = data.get("category_flags") or {}
+    exec_personnel = bool(cf.get("exec_personnel"))
+    org_restructuring = bool(cf.get("org_restructuring"))
+    include = data.get("is_exec_news") or exec_personnel or org_restructuring
+    if not include:
         exclude_reason = (data.get("reason") or "").strip() or "is_exec_news=false"
         return None, {
             "company": company,
             "person": person,
             "action_type": action_type,
             "exclude_reason": exclude_reason,
+            "exec_personnel": False,
+            "org_restructuring": False,
+            "org_changes": [],
         }
+
+    org_changes_raw = data.get("org_changes")
+    org_changes = [str(s).strip() for s in org_changes_raw] if isinstance(org_changes_raw, list) else []
+    org_changes = [s for s in org_changes if s][:15]
 
     bullet_points = data.get("bullet_points")
     if not isinstance(bullet_points, list):
@@ -156,6 +165,8 @@ def _parse_llm_response(text: str, url: str) -> tuple[dict | None, dict]:
         "2문장 요약": (data.get("summary_2sent") or "").strip(),
         "중요 포인트": data.get("key_points") if isinstance(data.get("key_points"), list) else [],
         "bullet_points": bullet_points,
+        "category_flags": {"exec_personnel": exec_personnel, "org_restructuring": org_restructuring},
+        "org_changes": org_changes,
         "관련도 점수": int(data.get("relevance_score", 0)) if data.get("relevance_score") is not None else 0,
         "기사 URL": url,
     }
@@ -164,6 +175,9 @@ def _parse_llm_response(text: str, url: str) -> tuple[dict | None, dict]:
         "person": person,
         "action_type": action_type,
         "exclude_reason": "",
+        "exec_personnel": exec_personnel,
+        "org_restructuring": org_restructuring,
+        "org_changes": org_changes,
     }
 
 
@@ -192,6 +206,9 @@ def _call_llm_once(client, article: dict) -> tuple[dict | None, dict]:
         company: str,
         person: str,
         action_type: str,
+        exec_personnel: bool = False,
+        org_restructuring: bool = False,
+        org_changes: list | None = None,
     ) -> dict:
         return {
             "title": title,
@@ -202,6 +219,9 @@ def _call_llm_once(client, article: dict) -> tuple[dict | None, dict]:
             "person": person,
             "action_type": action_type,
             "body_missing": body_missing,
+            "exec_personnel": exec_personnel,
+            "org_restructuring": org_restructuring,
+            "org_changes": org_changes or [],
         }
 
     user = USER_PROMPT_TEMPLATE.format(
@@ -233,6 +253,9 @@ def _call_llm_once(client, article: dict) -> tuple[dict | None, dict]:
                 company=debug_extra.get("company", ""),
                 person=debug_extra.get("person", ""),
                 action_type=debug_extra.get("action_type", ""),
+                exec_personnel=debug_extra.get("exec_personnel", False),
+                org_restructuring=debug_extra.get("org_restructuring", False),
+                org_changes=debug_extra.get("org_changes", []),
             )
         except Exception as e:
             print(f"LLM 호출 실패 attempt={attempt+1} (link={url[:50]}…): {e}")
@@ -244,10 +267,13 @@ def _call_llm_once(client, article: dict) -> tuple[dict | None, dict]:
                     company="",
                     person="",
                     action_type="",
+                    exec_personnel=False,
+                    org_restructuring=False,
+                    org_changes=[],
                 )
             import time
             time.sleep(1)
-    return None, make_debug(False, "", "LLM 호출 실패(재시도 소진)", "", "", "")
+    return None, make_debug(False, "", "LLM 호출 실패(재시도 소진)", "", "", False, False, [])
 
 
 def _dedupe_items(items: list[dict]) -> list[dict]:

@@ -56,9 +56,14 @@ KST = timezone(timedelta(hours=9))
 MAIL_FROM = "wjdwndks99@gmail.com"
 MAIL_TO = "juan.jung@navercorp.com"
 
-# 검색·필터: 임원인사 관련 1개 이상 + 파트너사 관련 1개 이상 포함 기사만 트래킹
+# 검색·필터: (임원인사 키워드 1개 이상 OR 조직개편 키워드 1개 이상) + 파트너사 1개 이상
 EXEC_KEYWORDS = [
     "임원인사", "선임", "내정", "영입", "임명", "연임", "역임", "복귀", "승진", "교체", "사임", "용퇴", "체제", "개편", "분사", "일원화",
+]
+# 조직개편 전용 키워드 (설정 상수로 분리)
+ORG_RESTRUCTURING_KEYWORDS = [
+    "신설", "개편", "재편", "통합", "통폐합", "폐지", "조직개편",
+    "본부 신설", "센터 신설", "조직 신설", "조직 통합", "조직 폐지", "조직 슬림화", "부문 재편",
 ]
 PARTNER_KEYWORDS = [
     "삼성", "삼성전자", "신라면세점", "삼성SDS", "SK하이닉스", "SK", "SKT", "SK브로드밴드", "티맵모빌리티", "SK스퀘어", "SK플래닛",
@@ -73,8 +78,8 @@ PARTNER_KEYWORDS = [
     "Google", "구글", "Microsoft", "마이크로소프트", "Amazon", "아마존", "OpenAI", "오픈AI", "Perplexity", "퍼플렉시티", "Anthropic", "앤스로픽", "Deepseek", "딥시크",
     "Apple", "애플", "Tesla", "테슬라", "Alibaba", "알리바바", "Walmart", "월마트", "Oracle", "오라클", "Palantir", "팔란티어", "Tencent", "텐센트",
 ]
-# API 검색용 (임원인사 키워드로 검색)
-KEYWORDS = EXEC_KEYWORDS
+# API 검색용: 임원인사 + 조직개편 키워드 (중복 제거)
+KEYWORDS = list(dict.fromkeys(EXEC_KEYWORDS + ORG_RESTRUCTURING_KEYWORDS))
 # 회사 추출용: 긴 이름 우선 매칭
 COMPANY_PATTERNS = sorted(set(PARTNER_KEYWORDS), key=lambda x: -len(x))
 
@@ -570,8 +575,10 @@ def collect_articles_since(client_id: str, client_secret: str, since_dt: datetim
                 # 요청1: 연예·정치·스포츠 이적 등 임원인사가 아닌 기사 제목 제외
                 if _is_title_noise(title_clean):
                     continue
-                # 제목만 기준: 임원인사 키워드 1개 이상 + 파트너사 키워드 1개 이상 포함된 기사만 트래킹
-                if not _keyword_in_text_strict(title_clean, EXEC_KEYWORDS):
+                # 제목: (임원인사 키워드 1개 이상 OR 조직개편 키워드 1개 이상) + 파트너사 1개 이상
+                has_exec = _keyword_in_text_strict(title_clean, EXEC_KEYWORDS)
+                has_org = _keyword_in_text_strict(title_clean, ORG_RESTRUCTURING_KEYWORDS)
+                if not has_exec and not has_org:
                     continue
                 # 요청2: '다음'이 일반어(다음 시즌/경기) 또는 스포츠 맥락이면 제외(제목-내용 불일치 방지)
                 if not _partner_match_for_exec_news(title_clean):

@@ -56,13 +56,15 @@ def _parse_pub_for_sort(pub_date_str: str) -> datetime | None:
 
 
 def _dedupe_items(items: list[dict]) -> list[dict]:
-    """같은 회사+인물+인사유형이면 1건으로. pub_date 가장 빠른 것을 대표로."""
+    """임원인사: (회사, 인물, 인사유형) 1건. 조직만 있는 건 (회사, (), org_changes) 별도 유지. 조직개편 문구 dedupe는 본문 수집 시."""
     key_to_best: dict[tuple, dict] = {}
     for it in items:
         company = (it.get("company") or "").strip()
         person = (it.get("person") or "").strip()
         action_type = (it.get("action_type") or "").strip()
-        key = (company, person, action_type)
+        org_changes = it.get("org_changes") or []
+        org_key = tuple(sorted(str(x).strip() for x in org_changes if x))
+        key = (company, person, action_type, org_key)
         pub = _parse_pub_for_sort(it.get("pub_date") or "")
         existing = key_to_best.get(key)
         if existing is None:
@@ -104,7 +106,7 @@ def _action_line(entry: dict) -> str:
 
 
 def _build_digest_html(entries: list[dict], month: int) -> str:
-    """기업별 그룹핑 후 HTML 본문 생성."""
+    """기업별 그룹핑 후 [임원인사]/[조직개편] 섹션으로 HTML 본문 생성. 조직개편은 (회사, 문구) 기준 dedupe."""
     by_company: dict[str, list[dict]] = defaultdict(list)
     for e in entries:
         c = (e.get("company") or "").strip() or "(회사명 없음)"
@@ -115,22 +117,51 @@ def _build_digest_html(entries: list[dict], month: int) -> str:
 
     lines = [
         "<!DOCTYPE html><html><head><meta charset='utf-8'></head><body>",
-        f"<h2>{mm}월 인사변동 현황 브리핑</h2>",
-        "<p>- 인사변동 진행 기업: " + ", ".join(companies_sorted) + "</p>",
+        f"<h2>{mm}월 인사변동 및 조직개편 브리핑</h2>",
+        "<p>- 인사변동 및 조직개편 진행 기업: " + ", ".join(companies_sorted) + "</p>",
         "<ol>",
     ]
     for i, company in enumerate(companies_sorted, 1):
         group = by_company[company]
         rep_link = ""
+        exec_lines_seen = set()
+        org_changes_seen = set()
+        exec_lines = []
+        org_lines = []
         for e in group:
             url = (e.get("article_url") or "").strip()
             if url:
                 rep_link = url
-                break
+            cf = e.get("category_flags") or {}
+            is_exec = cf.get("exec_personnel", True)
+            is_org = cf.get("org_restructuring", False)
+            if is_exec:
+                line = _action_line(e)
+                if line and line not in exec_lines_seen:
+                    exec_lines_seen.add(line)
+                    exec_lines.append(line)
+            if is_org:
+                for oc in e.get("org_changes") or []:
+                    oc = (oc or "").strip()
+                    if oc and oc not in org_changes_seen:
+                        org_changes_seen.add(oc)
+                        org_lines.append(oc)
         lines.append(f"  <li><strong>{company}</strong>")
         lines.append("    <ul>")
-        for e in group:
-            lines.append(f"      <li>{_action_line(e)}</li>")
+        if exec_lines:
+            lines.append("    <li><strong>[임원인사]</strong>")
+            lines.append("    <ul>")
+            for line in exec_lines:
+                lines.append(f"      <li>{line}</li>")
+            lines.append("    </ul>")
+            lines.append("    </li>")
+        if org_lines:
+            lines.append("    <li><strong>[조직개편]</strong>")
+            lines.append("    <ul>")
+            for oc in sorted(org_lines):
+                lines.append(f"      <li>{oc}</li>")
+            lines.append("    </ul>")
+            lines.append("    </li>")
         if rep_link:
             lines.append(f'      <li><a href="{rep_link}">기사 보기</a></li>')
         lines.append("    </ul>")
@@ -170,8 +201,8 @@ def run() -> int:
 
     if not archive_path.exists():
         print(f"archive 없음: {archive_path}. 0건 메일 발송.")
-        subject = f"{month:02d}월 인사변동 현황 브리핑"
-        body_html = f"<!DOCTYPE html><html><head><meta charset='utf-8'></head><body><h2>{subject}</h2><p>{month:02d}월 인사변동 없음</p></body></html>"
+        subject = f"{month:02d}월 인사변동 및 조직개편 브리핑"
+        body_html = f"<!DOCTYPE html><html><head><meta charset='utf-8'></head><body><h2>{subject}</h2><p>{month:02d}월 인사변동 및 조직개편 없음</p></body></html>"
         _send_gmail(subject, body_html)
         print("메일 발송: 0건 브리핑 발송함.")
         return 0
@@ -187,13 +218,13 @@ def run() -> int:
     print(f"기업 수: {len(companies)}")
 
     if not entries:
-        subject = f"{month:02d}월 인사변동 현황 브리핑"
-        body_html = f"<!DOCTYPE html><html><head><meta charset='utf-8'></head><body><h2>{subject}</h2><p>{month:02d}월 인사변동 없음</p></body></html>"
+        subject = f"{month:02d}월 인사변동 및 조직개편 브리핑"
+        body_html = f"<!DOCTYPE html><html><head><meta charset='utf-8'></head><body><h2>{subject}</h2><p>{month:02d}월 인사변동 및 조직개편 없음</p></body></html>"
         _send_gmail(subject, body_html)
         print("메일 발송: 0건 브리핑 발송함.")
         return 0
 
-    subject = f"{month:02d}월 인사변동 현황 브리핑"
+    subject = f"{month:02d}월 인사변동 및 조직개편 브리핑"
     body_html = _build_digest_html(entries, month)
     _send_gmail(subject, body_html)
     print("메일 발송: 완료.")
