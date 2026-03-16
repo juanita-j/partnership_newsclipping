@@ -2,6 +2,8 @@
 """
 임원인사·조직개편 뉴스 중 지정 회사 포함 기사만 필터해
 실행한 그날 발표분을 A(인사변동)/B(조직개편)/C(둘 다) 타입으로 정리해 메일 본문 생성.
+
+[뉴스 정리 포맷] 설정한 기간 발표분만 요약, 블로그 절대 미활용, 동일 회사 여러 기사는 종합·중복 제거, 인물 여러 명이면 모두 포함.
 """
 import os
 import re
@@ -224,6 +226,9 @@ def collect_and_filter(client_id: str, client_secret: str, cutoff: datetime) -> 
             for item in data.get("items", []):
                 link = item.get("link") or item.get("originallink") or ""
                 if not link or link in seen_links:
+                    continue
+                link_lower = link.lower()
+                if "blog." in link_lower or "cafe." in link_lower or "kin." in link_lower:
                     continue
                 pub_dt = parse_pub_date(item.get("pubDate", ""))
                 if pub_dt:

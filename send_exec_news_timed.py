@@ -2,10 +2,29 @@
 """
 하루 4회(10/12/15/18시 KST) 또는 수시 발송: 파트너사·임원인사 뉴스 수집 후 메일 본문 생성.
 - 정기: 직전 발송 시각 이후 기사 / 수시(REQUEST_SCOPE=today): 당일 00:00~현재
-- 트래킹: 임원인사 키워드 1개 이상 + 파트너사 키워드 1개 이상, 최근 한 달 이내 뉴스 기사만(블로그·논문 제외)
-- 출력: [간결한 버전](첫 줄 제목은 '-' 없음, 이하 '-' bullet, 번호는 1. 2. 만) + [추가 내용]
-- 인사 형태·이름 등은 기사 표현 그대로, 이름은 작은따옴표로 감쌈. 정보 부족 시 해당 bullet 생략 또는 '추가로 확인된 내용 없음'
+- 트래킹: 기사 제목에 임원인사 키워드 1개 이상 + 파트너사 키워드 1개 이상 포함된 기사만, 최근 한 달 이내 뉴스만(블로그·논문 제외)
 ※ 본문(전문) 분석은 원문 수집이 필요하며, 현재는 API 제목·요약만 사용합니다.
+
+[출력 형식 - 일반 규칙]
+- 첫 줄(제목)은 '-' 없이 출력. 그 외 요약 본문은 모두 '-' 하이픈으로 시작. 번호 묶음은 '1.', '2.' 형식.
+- 사람 이름 앞뒤에는 작은따옴표(')를 붙인다. '님'은 붙이지 않는다.
+- 인사 형태 용어는 기사 표현 그대로 사용 (영입, 승진, 선임, 이동 등).
+- 문장은 한국어 조사(이/가 등)를 자연스럽게 맞춘다.
+- 정보가 기사만으로 부족하면 최근 한 달 이내 추가 뉴스로 보완. 보완할 정보가 없거나 확인 불가하면 해당 bullet은 생략.
+
+[출력 형식 - 정리 템플릿]
+제목(첫 줄, '-' 없음): [회사이름1] [직무1] 임원인사 (mm/dd)
+- [회사이름1] [직무1]에 [사람이름] [직무2] [인사형태]
+- 경력: [회사이름2], [회사이름3]
+- [임원인사 진행 이유]
+- [전임자 교체/유지/타 직위 이동 여부]
+(대괄호 안은 기사에서 분석해 채움. 확인 불가 시 해당 bullet 생략.)
+
+[뉴스 정리 포맷 규칙]
+- 인사변동 관련 뉴스 정리 시, 설정한 기간 동안 발표된 뉴스만 요약한다.
+- 블로그는 절대 활용하지 않는다 (수집·요약 모두 제외).
+- 특정 회사명이 들어간 기사가 여러 개 있으면 내용을 종합하고 중복은 제거한다.
+- 기사에 인물이 여러 명이면 모두 포함한다 (한 명만 쓰지 않음).
 """
 import os
 import re
@@ -57,6 +76,30 @@ PARTNER_KEYWORDS = [
 KEYWORDS = EXEC_KEYWORDS
 # 회사 추출용: 긴 이름 우선 매칭
 COMPANY_PATTERNS = sorted(set(PARTNER_KEYWORDS), key=lambda x: -len(x))
+
+# 단어 경계: 키워드가 다른 단어 한가운데 포함되지 않도록 (예: '현대' in '현대적', '메타' in '메타버스' 제외)
+def _keyword_in_text_strict(text: str, keywords: list[str]) -> bool:
+    """키워드 중 하나라도 텍스트에 '단어 단위'로 포함되면 True. 긴 키워드부터 검사."""
+    if not text or not text.strip():
+        return False
+    text = " " + text.strip() + " "
+    # 긴 키워드 우선 (예: '삼성전자' → '삼성' 보다 먼저 매칭)
+    for k in sorted(set(k for k in keywords if k), key=lambda x: -len(x)):
+        if k not in text:
+            continue
+        idx = 0
+        while True:
+            i = text.find(k, idx)
+            if i < 0:
+                break
+            before = text[i - 1] if i > 0 else " "
+            after = text[i + len(k)] if i + len(k) < len(text) else " "
+            boundary = " \t\n\r,.\"\'()[];:·-"
+            after_ok = after in boundary or after in "가이은를의에와과도만는"
+            if before in boundary and after_ok:
+                return True
+            idx = i + 1
+    return False
 
 MAX_ARTICLES = 50
 NEWS_API_URL = "https://openapi.naver.com/v1/search/news.json"
@@ -118,6 +161,8 @@ def fetch_news(client_id: str, client_secret: str, query: str, display: int = 20
 # 인사/조직 키워드로 기사 유형 분류용
 PERSON_KEYWORDS = ("선임", "영입", "내정", "임명", "사임", "교체", "용퇴", "승진", "연임", "대표", "CEO", "임원")
 ORG_KEYWORDS = ("조직개편", "조직 개편", "신설", "팀", "본부", "분사", "일원화", "통합", "개편")
+# 직무 추출용 (긴 표현 우선)
+RANK_KEYWORDS = ("대표이사", "부사장", "전무이사", "상무이사", "대표", "사장", "전무", "상무", "이사", "본부장", "팀장", "실장", "CEO", "CFO", "CTO", "COO")
 
 
 def _extract_company(title: str, description: str) -> str:
@@ -127,6 +172,66 @@ def _extract_company(title: str, description: str) -> str:
         if c in text:
             return c
     return "기사 참조"
+
+
+def _extract_position(text: str) -> str:
+    """기사 텍스트에서 직무(직함) 추출. 매칭되는 첫 번째."""
+    if not text or not text.strip():
+        return "직무"
+    for r in RANK_KEYWORDS:
+        if r in text:
+            return r
+    return "직무"
+
+
+def _extract_person_names(text: str) -> list[str]:
+    """기사 텍스트에서 인물 이름 추출. '이름 직무' 또는 '직무 이름' 패턴. 인물 여러 명이면 모두 포함. '님' 제거."""
+    if not text or not text.strip():
+        return []
+    names = []
+    # '한글2~4자 + 직무' 패턴
+    rank_pat = "|".join(re.escape(r) for r in RANK_KEYWORDS)
+    for m in re.finditer(rf"([가-힣]{{2,4}})\s*(?:{rank_pat})\b", text):
+        name = m.group(1).strip()
+        if name and name not in ("그룹", "회사", "당시", "전임", "신규", "올해", "내년", "최근", "관련", "이번", "앞서"):
+            names.append(name)
+    for m in re.finditer(rf"(?:{rank_pat})\s*([가-힣]{{2,4}})\b", text):
+        name = m.group(1).strip()
+        if name and name not in names and name not in ("그룹", "회사", "당시", "전임", "신규"):
+            names.append(name)
+    seen = set()
+    out = []
+    for n in names:
+        n_clean = n.replace("님", "").strip()
+        if n_clean and n_clean not in seen:
+            seen.add(n_clean)
+            out.append(n_clean)
+    return out[:5]
+
+
+def _extract_career_companies(text: str, exclude_company: str) -> list[str]:
+    """본문/요약에서 경력 회사명 추출 (주요 회사 제외)."""
+    if not text:
+        return []
+    found = []
+    for c in COMPANY_PATTERNS:
+        if c != exclude_company and c in text:
+            found.append(c)
+    return found[:5]
+
+
+def _extract_person_rank(text: str) -> str:
+    """신규 임원의 직함(직무2). '이름 직무' 패턴에서 직무 추출. 없으면 _extract_position과 동일하게."""
+    rank_pat = "|".join(re.escape(r) for r in RANK_KEYWORDS)
+    m = re.search(rf"[가-힣]{{2,4}}\s*({rank_pat})\b", text)
+    return m.group(1) if m else ""
+
+
+def _format_names_for_display(names: list[str]) -> str:
+    """이름 목록을 '이름1', '이름2' 형식으로. 이름 앞뒤 작은따옴표, '님' 없음."""
+    if not names:
+        return "[이름]"
+    return ", ".join(f"'{n}'" for n in names)
 
 
 def _extract_date_str(pub_date_str: str) -> str:
@@ -158,54 +263,86 @@ def _classify_article_type(title: str, description: str) -> str:
 
 
 def _pick_action_word(title: str, description: str, for_leave: bool = False) -> str:
-    """기사에서 사용된 행동 단어 추출 (선임/영입/내정 또는 사임/교체/용퇴)."""
+    """기사 표현 그대로 인사 형태 용어 추출 (영입, 승진, 선임, 이동, 사임, 교체 등)."""
     text = (title + " " + description).strip()
     if for_leave:
         for w in ("사임", "교체", "용퇴"):
             if w in text:
                 return w
-        return "기사 참조"
-    for w in ("선임", "영입", "내정", "임명"):
+        return ""
+    for w in ("영입", "승진", "선임", "이동", "내정", "임명", "연임", "복귀"):
         if w in text:
             return w
-    return "기사 참조"
+    return ""
 
 
 def _build_concise_single(company: str, date_md: str, article: dict) -> list[str]:
-    """단일 인사변동: [간결한 버전]. 본문 있으면 본문 기준으로 추출."""
+    """단일 인사변동: 템플릿 형식. 첫 줄은 '-' 없음, 이하 '-' bullet. 확인 불가 시 해당 bullet 생략."""
     text = _article_text(article)
     title = (article.get("title") or "").strip()
+    position = _extract_position(text)
     action = _pick_action_word(title, text, for_leave=False)
     action_leave = _pick_action_word(title, text, for_leave=True)
-    lines = [f"{company} 인사변동 소식 공유드립니다. ({date_md})"]
-    bullets = [
-        f"- {company} [직무]에 '[이름]' {action} (상세: 기사 참조)",
-        "- 경력: 기사 참조",
-        "- [선임/영입/승진 배경 또는 이유] (기사 참조)",
-        f"- [전임자] {action_leave} (기사 참조)",
-    ]
-    lines.extend(bullets[:5])
+    names = _extract_person_names(text)
+    career = _extract_career_companies(text, company)
+
+    # 첫 줄(제목): '-' 없음. [회사이름1] [직무1] 임원인사 (mm/dd)
+    lines = [f"{company} {position} 임원인사 ({date_md})"]
+
+    # - [회사] [직무1]에 [이름] [직무2] [인사형태]. 인물 여러 명이면 모두 나열.
+    name_str = _format_names_for_display(names) if names else "[이름]"
+    position2 = _extract_person_rank(text) or position
+    action_str = action if action else "[인사형태]"
+    mid = f" {position2}" if position2 else ""
+    lines.append(f"- {company} {position}에 {name_str}{mid} {action_str}")
+
+    # - 경력: (확인 가능할 때만)
+    if career:
+        lines.append("- 경력: " + ", ".join(career))
+
+    # - [임원인사 진행 이유]: 기사에서 구체적 표현 있을 때만, 확인 불가 시 생략
+    for kw in ("실적 악화", "경질성", "조직 개편", "인수·합병", "사업 강화"):
+        if kw in text:
+            lines.append(f"- {kw} 등 (기사 참조)")
+            break
+
+    # - [전임자 교체/유지/타 직위 이동 여부]: 인사형태(교체/사임 등) 있을 때만
+    if action_leave:
+        lines.append(f"- 전임자 {name_str} {action_leave}")
+
     return lines
 
 
 def _build_concise_multi(company: str, date_md: str, clusters: list[list[dict]]) -> list[str]:
-    """여러 명/여러 조직: 1. 2. 번호 묶음, 각 그룹당 최대 5개 bullet."""
-    lines = [f"{company} 인사변동 소식 공유드립니다. ({date_md})"]
+    """동일 회사 내 여러 건: 첫 줄 제목(no '-'), 이하 '1.', '2.' 번호 헤더 + 각 건당 템플릿 bullet."""
+    position = "직무"
+    for cl in clusters:
+        rep = max(cl, key=lambda a: len(_article_text(a)))
+        p = _extract_position(_article_text(rep))
+        if p != "직무":
+            position = p
+            break
+    # 첫 줄(제목): '-' 없음
+    lines = [f"{company} {position} 임원인사 ({date_md})"]
     for i, cl in enumerate(clusters, 1):
         rep = max(cl, key=lambda a: len(_article_text(a)))
-        title = (rep.get("title") or "").strip()
         text = _article_text(rep)
+        title = (rep.get("title") or "").strip()
+        pos = _extract_position(text)
         action = _pick_action_word(title, text, for_leave=False)
         action_leave = _pick_action_word(title, text, for_leave=True)
+        names = _extract_person_names(text)
+        career = _extract_career_companies(text, company)
+        name_str = _format_names_for_display(names) if names else "[이름]"
+        position2 = _extract_person_rank(text) or pos
+        action_str = action if action else "[인사형태]"
+        mid = f" {position2}" if position2 else ""
         lines.append(f"{i}. [계열사/사업부] (기사 참조)")
-        bullets = [
-            f"- {company} [직무]에 '[이름]' {action} (기사 참조)",
-            "- 경력: 기사 참조",
-            "- [배경 또는 이유] (기사 참조)",
-            f"- [전임자 관련 변화] (기사 참조)",
-        ]
-        for b in bullets[:5]:
-            lines.append(b)
+        lines.append(f"- {company} {pos}에 {name_str}{mid} {action_str}")
+        if career:
+            lines.append("- 경력: " + ", ".join(career))
+        if action_leave:
+            lines.append(f"- 전임자 {name_str} {action_leave}")
     return lines
 
 
@@ -284,7 +421,8 @@ def _is_same_news(a1: dict, a2: dict) -> bool:
 
 
 def _group_by_company(articles: list[dict]) -> dict[str, list[dict]]:
-    """회사별로 기사 묶음. '기사 참조'는 회사 미상이므로 문단 합치지 않음."""
+    """회사별로 기사 묶음. 동일 회사 여러 기사는 이후 _merge_one_company에서 내용 종합·중복 제거.
+    '기사 참조'는 회사 미상이므로 문단 합치지 않음."""
     groups: dict[str, list[dict]] = {}
     for a in articles:
         company = _extract_company(a.get("title", ""), a.get("description", ""))
@@ -326,13 +464,14 @@ def _cluster_same_news(company_articles: list[dict]) -> list[list[dict]]:
 
 
 def _merge_one_company(company: str, company_articles: list[dict]) -> tuple[str, str, list[str], list[str]]:
-    """한 회사 문단: 제목줄, 대표 링크, [간결한 버전] 라인 목록, [추가 내용] 라인 목록."""
+    """한 회사 문단: 제목줄, 대표 링크, [간결한 버전] 라인 목록, [추가 내용] 라인 목록.
+    동일 회사 기사 여러 건은 내용 종합·중복 제거 후 한 덩어리로 요약. 인물이 여러 명이면 모두 나열."""
     if company.startswith("_unk_"):
         a = company_articles[0]
         title = (a.get("title") or "").strip()
         link = (a.get("link") or "").strip()
         date_md = _extract_date_md(a.get("pubDate", ""))
-        concise = [f"[회사 미상] 인사변동 소식 공유드립니다. ({date_md})"]
+        concise = [f"[회사 미상] 임원인사 ({date_md})"]
         concise.append(f"- {title} (기사 참조)")
         extra = _build_extra_block(company_articles)
         return title, link, concise, extra
@@ -370,14 +509,15 @@ def collect_articles_since(client_id: str, client_secret: str, since_dt: datetim
                 if pub_dt < now - timedelta(days=30):
                     continue
                 link_lower = link.lower()
+                # 블로그 절대 활용하지 않음 (수집 제외)
                 if "blog." in link_lower or "cafe." in link_lower or "kin." in link_lower:
                     continue
                 title_clean = strip_html(item.get("title", ""))
                 desc_clean = strip_html(item.get("description", ""))
-                text = (title_clean + " " + desc_clean).strip()
-                if not any(k in text for k in EXEC_KEYWORDS):
+                # 제목만 기준: 임원인사 키워드 1개 이상 + 파트너사 키워드 1개 이상 포함된 기사만 트래킹
+                if not _keyword_in_text_strict(title_clean, EXEC_KEYWORDS):
                     continue
-                if not any(k in text for k in PARTNER_KEYWORDS):
+                if not _keyword_in_text_strict(title_clean, PARTNER_KEYWORDS):
                     continue
                 seen_links.add(link)
                 articles.append({
