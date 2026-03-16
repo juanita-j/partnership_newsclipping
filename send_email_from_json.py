@@ -60,18 +60,31 @@ def _title_from_key_points(key_points: list, max_len: int = 60) -> str:
     return first
 
 
+def _to_briefing_style(s: str) -> str:
+    """문장을 브리핑 스타일 명사형으로 간단 변환. (~했다→~함, ~중 등)"""
+    if not s or not s.strip():
+        return s
+    s = s.strip()
+    s = re.sub(r"했다\.?\s*$", "함", s)
+    s = re.sub(r"했다\s*$", "함", s)
+    s = re.sub(r"하고\s*있다\.?\s*$", "중", s)
+    s = re.sub(r"되고\s*있다\.?\s*$", "중", s)
+    s = re.sub(r"될\s*것으로\s*보인다\.?\s*$", "전망", s)
+    return s
+
+
 def _bullets_from_item(it: dict) -> list[str]:
-    """bullet_points 있으면 사용, 없으면 2문장 요약·중요 포인트 등으로 2~10개 불렛 생성."""
+    """bullet_points 있으면 사용(2~5개), 없으면 2문장 요약·중요 포인트로 브리핑 스타일 불렛 생성."""
     bullets = it.get("bullet_points")
     if isinstance(bullets, list) and bullets:
         return [str(b).strip() for b in bullets if str(b).strip()][:10]
 
-    # fallback: 2문장 요약 + 중요 포인트를 문장 단위로
+    # fallback: 2문장 요약 + 중요 포인트, 브리핑 스타일로
     out = []
     summary = (it.get("2문장 요약") or "").strip()
     if summary:
         for s in re.split(r"[.;]\s+", summary):
-            s = s.strip()
+            s = _to_briefing_style(s.strip())
             if s and len(s) > 5:
                 out.append(s)
     key_points = it.get("중요 포인트") or []
@@ -82,14 +95,14 @@ def _bullets_from_item(it: dict) -> list[str]:
     new_role = (it.get("신규 직책") or "").strip()
 
     for p in key_points:
-        p = str(p).strip()
+        p = _to_briefing_style(str(p).strip())
         if p and p not in out:
             out.append(p)
     if not out and (company or person or ptype):
         if person and company:
-            out.append(f"{person} {company} {prev_role or '이사'}가 {new_role or ptype}함.")
+            out.append(f"{person} {company} {prev_role or '이사'} {new_role or ptype}함")
         elif company and ptype:
-            out.append(f"{company} {ptype} 관련.")
+            out.append(f"{company} {ptype} 관련")
     return out[:10] if out else ["요약 없음"]
 
 
@@ -114,7 +127,7 @@ def _build_html_from_summary(items: list[dict], subject: str) -> str:
         lines.append("    <p>")
         lines.append(f"      <strong>{title_text}</strong>")
         if date_mmdd:
-            lines.append(f"      &nbsp; {date_mmdd}")
+            lines.append(f"      &nbsp; ({date_mmdd})")
         if url:
             lines.append(f'      &nbsp; <a href="{url}">기사 보기</a>')
         lines.append("    </p>")
