@@ -1,6 +1,6 @@
 # 하루 4회(한국 10/12/15/18시) 임원인사 뉴스 메일 발송
 # 직전 업데이트 이후 기사만 포함. 제목: 인사변동 업데이트 (yy/mm/dd)
-# 필수 Secrets: GMAIL_APP_PASSWORD, NAVER_CLIENT_ID, NAVER_CLIENT_SECRET
+# 필수 Secrets: GMAIL_APP_PASSWORD, NAVER_CLIENT_ID, NAVER_CLIENT_SECRET, OPENAI_API_KEY
 
 name: Send News Mail
 
@@ -44,14 +44,23 @@ jobs:
           pip install python-dotenv
 
       - name: Collect news (Naver API)
-        run: python send_exec_news_timed.py
+        run: |
+          echo "github.event_name=${{ github.event_name }}"
+          echo "REQUEST_SCOPE=${{ github.event_name == 'workflow_dispatch' && 'today' || 'scheduled' }}"
+          python send_exec_news_timed.py
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           TZ: Asia/Seoul
           FETCH_ARTICLE_BODY: "1"
-          # 수시 발송(수동 Run) 시 당일 00:00~현재 기사. 정기 스케줄 시 직전 발송 이후
+          # workflow_dispatch → 당일 00:00~현재 전체 수집. schedule → 직전 업데이트 이후만 수집
           REQUEST_SCOPE: ${{ github.event_name == 'workflow_dispatch' && 'today' || 'scheduled' }}
+
+      - name: Summarize with LLM
+        run: python summarize_exec_news_llm.py
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # OPENAI_MODEL: gpt-4o-mini  # 기본값
 
       - name: Send mail (Gmail)
         run: python send_email_from_json.py

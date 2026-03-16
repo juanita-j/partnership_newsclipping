@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 하루 4회(10/12/15/18시 KST) 또는 수시 발송: 파트너사·임원인사 뉴스 수집 후 메일 본문 생성.
-- 정기: 직전 발송 시각 이후 기사 / 수시(REQUEST_SCOPE=today): 당일 00:00~현재
+- 정기(schedule): 직전 발송 슬롯 이후 기사만 수집. 수동(workflow_dispatch): REQUEST_SCOPE=today → 당일 00:00 KST~현재 전체 수집(sent_log/state 무시).
+- 로컬 today 모드 테스트: PowerShell에서 `$env:REQUEST_SCOPE="today"; python send_exec_news_timed.py`
 - 트래킹: 기사 제목에 임원인사 키워드 1개 이상 + 파트너사 키워드 1개 이상 포함된 기사만, 최근 한 달 이내 뉴스만(블로그·논문 제외)
 ※ 본문(전문) 분석은 원문 수집이 필요하며, 현재는 API 제목·요약만 사용합니다.
 
@@ -101,10 +102,57 @@ def _keyword_in_text_strict(text: str, keywords: list[str]) -> bool:
             idx = i + 1
     return False
 
+
+# 요청1: 임원인사가 아닌 기사(연예·정치·스포츠 이적 등) 제목 패턴 → 수집 제외
+TITLE_NOISE_PATTERNS = [
+    # 연예/영화/예능
+    "[영상]", "[줌 인", "예능", "영화", "시사회", "개봉", "배우", "감독", "포토타임", "질의응답",
+    "열여덟 청춘", "전소민", "스크린 복귀",
+    # 정치
+    "국민의힘", "공관위", "공천", "지방선거", "정치권", "여의도", "컷오프", "단체장", "의원",
+    # 스포츠 이적(제목-내용 불일치: '다음'이 회사가 아닌 일반어·스포츠 맥락)
+    "이적료", "아스널", "MLS", "사우디", "유리몸", "이별한다",
+]
+
+
+def _is_title_noise(title: str) -> bool:
+    """연예·정치·스포츠 이적 등 임원인사가 아닌 기사 제목이면 True → 수집 제외."""
+    if not title or not title.strip():
+        return False
+    t = title.strip()
+    for pat in TITLE_NOISE_PATTERNS:
+        if pat in t:
+            return True
+    return False
+
+
+def _is_daum_common_word_context(title: str) -> bool:
+    """'다음'이 회사(DAUM)가 아닌 '다음 시즌/경기' 등 일반어·스포츠 맥락이면 True → 파트너 매칭에서 제외."""
+    if not title or "다음" not in title:
+        return False
+    daum_noise = (
+        "다음 시즌", "다음 경기", "다음 달", "다음 주", "다음 번", "다음 단계",
+        "이적료", "아스널", "MLS", "사우디", "유리몸", "이적", "이별",
+    )
+    return any(n in title for n in daum_noise)
+
+
+def _partner_match_for_exec_news(title: str) -> bool:
+    """제목에 파트너사 키워드가 '임원인사 맥락'으로 포함되면 True. '다음'은 일반어/스포츠 맥락 시 제외."""
+    if not _keyword_in_text_strict(title, PARTNER_KEYWORDS):
+        return False
+    if _is_daum_common_word_context(title):
+        others = [k for k in PARTNER_KEYWORDS if k not in ("다음", "DAUM")]
+        if not _keyword_in_text_strict(title, others):
+            return False
+    return True
+
+
 MAX_ARTICLES = 50
 NEWS_API_URL = "https://openapi.naver.com/v1/search/news.json"
 OUTPUT_DIR = Path(__file__).resolve().parent
-EMAIL_JSON = OUTPUT_DIR / "email_content.json"
+# 파이프라인: 이 스크립트는 news_raw.json 생성 전용. LLM 요약(summarize_exec_news_llm.py) → news_summary.json → send_email_from_json.py
+NEWS_RAW_JSON = OUTPUT_DIR / "news_raw.json"
 
 # 발송 시각 (KST)
 RUN_HOURS_KST = (10, 12, 15, 18)
@@ -115,9 +163,9 @@ def now_kst() -> datetime:
 
 
 def get_since_datetime(now: datetime, since_today_midnight: bool = False) -> datetime:
-    """'직전 업데이트' 시각 반환.
-    since_today_midnight=True(수시 발송): 당일 00:00 KST
-    False(정기 발송): 10시→전날18시, 12시→당일10시, 15시→당일12시, 18시→당일15시
+    """직전 업데이트(정기 발송 슬롯) 시각 반환. KST 기준.
+    since_today_midnight=True: 당일 00:00 KST
+    False(정기): 10시→전날18시, 12시→당일10시, 15시→당일12시, 18시→당일15시
     """
     if since_today_midnight:
         return now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -131,6 +179,11 @@ def get_since_datetime(now: datetime, since_today_midnight: bool = False) -> dat
     else:
         since = now.replace(hour=15, minute=0, second=0, microsecond=0)
     return since
+
+
+def get_today_start_kst(now: datetime) -> datetime:
+    """당일 00:00:00 Asia/Seoul (KST)."""
+    return now.replace(hour=0, minute=0, second=0, microsecond=0)
 
 
 def parse_pubdate(s: str) -> datetime | None:
@@ -514,10 +567,14 @@ def collect_articles_since(client_id: str, client_secret: str, since_dt: datetim
                     continue
                 title_clean = strip_html(item.get("title", ""))
                 desc_clean = strip_html(item.get("description", ""))
+                # 요청1: 연예·정치·스포츠 이적 등 임원인사가 아닌 기사 제목 제외
+                if _is_title_noise(title_clean):
+                    continue
                 # 제목만 기준: 임원인사 키워드 1개 이상 + 파트너사 키워드 1개 이상 포함된 기사만 트래킹
                 if not _keyword_in_text_strict(title_clean, EXEC_KEYWORDS):
                     continue
-                if not _keyword_in_text_strict(title_clean, PARTNER_KEYWORDS):
+                # 요청2: '다음'이 일반어(다음 시즌/경기) 또는 스포츠 맥락이면 제외(제목-내용 불일치 방지)
+                if not _partner_match_for_exec_news(title_clean):
                     continue
                 seen_links.add(link)
                 articles.append({
@@ -589,32 +646,51 @@ def main() -> int:
         return 1
 
     now = now_kst()
-    # 수시 발송(REQUEST_SCOPE=today): 당일 00:00~현재. 정기: 직전 발송 시각 이후
-    since_today = os.environ.get("REQUEST_SCOPE", "").strip().lower() == "today"
-    since = get_since_datetime(now, since_today_midnight=since_today)
-    print(f"실행 시각(KST): {now}")
-    print(f"구간: {'당일 00:00 ~' if since_today else '직전 발송 ~'} 이후 기사 수집")
-    print(f"since = {since}")
+    request_scope_raw = os.environ.get("REQUEST_SCOPE", "").strip().lower()
+    request_scope = "today" if request_scope_raw == "today" else "scheduled"
+
+    today_start = get_today_start_kst(now)
+    if request_scope == "today":
+        since = today_start
+        last_sent_at_str = "(무시됨, today 모드)"
+        mode_reason = "workflow_dispatch uses today's 00:00 in Asia/Seoul"
+    else:
+        since = get_since_datetime(now, since_today_midnight=False)
+        last_sent_at_str = since.isoformat()
+        mode_reason = "scheduled uses last run slot in Asia/Seoul"
+
+    print(f"REQUEST_SCOPE={request_scope}")
+    print(f"now={now.isoformat()}")
+    print(f"today_start={today_start.isoformat()}")
+    print(f"last_sent_at={last_sent_at_str}")
+    print(f"effective_since_dt={since.isoformat()}")
+    print(f"mode_reason={mode_reason}")
 
     articles = collect_articles_since(client_id, client_secret, since)
     fetch_bodies_for_articles(articles)
-    subject = build_subject(now)
-    body_html = build_body_html(articles)
 
     payload = {
-        "to": MAIL_TO,
-        "subject": subject,
-        "body": body_html,
-        "contentType": "html",
+        "request_scope": request_scope,
+        "collected_at": now.isoformat(),
+        "since_dt": since.isoformat(),
+        "mode_reason": mode_reason,
+        "articles": [
+            {
+                "title": a.get("title", ""),
+                "link": a.get("link", ""),
+                "description": a.get("description", ""),
+                "pubDate": a.get("pubDate", ""),
+                "body": a.get("body", ""),
+            }
+            for a in articles
+        ],
     }
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    with open(EMAIL_JSON, "w", encoding="utf-8") as f:
+    with open(NEWS_RAW_JSON, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
-    print(f"제목: {subject}")
-    print(f"수신: {MAIL_TO}")
     print(f"기사 수: {len(articles)}건")
-    print(f"저장: {EMAIL_JSON}")
+    print(f"저장: {NEWS_RAW_JSON}")
     return 0
 
 
