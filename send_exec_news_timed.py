@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-하루 4회(10/12/15/18시 KST) 또는 수시 발송: 파트너사·임원인사 뉴스 수집 후 메일 본문 생성.
+1시간마다(9~19시 KST, 11회) 또는 수시 발송: 파트너사·임원인사·조직개편 뉴스 수집 후 메일 본문 생성.
 - 정기(schedule): 직전 발송 슬롯 이후 기사만 수집. 수동(workflow_dispatch): REQUEST_SCOPE=today → 당일 00:00 KST~현재 전체 수집(sent_log/state 무시).
 - 로컬 today 모드 테스트: PowerShell에서 `$env:REQUEST_SCOPE="today"; python send_exec_news_timed.py`
 - 트래킹: 기사 제목에 임원인사 키워드 1개 이상 + 파트너사 키워드 1개 이상 포함된 기사만, 최근 한 달 이내 뉴스만(블로그·논문 제외)
@@ -159,8 +159,8 @@ OUTPUT_DIR = Path(__file__).resolve().parent
 # 파이프라인: 이 스크립트는 news_raw.json 생성 전용. LLM 요약(summarize_exec_news_llm.py) → news_summary.json → send_email_from_json.py
 NEWS_RAW_JSON = OUTPUT_DIR / "news_raw.json"
 
-# 발송 시각 (KST)
-RUN_HOURS_KST = (10, 12, 15, 18)
+# 발송 시각 (KST): 9시~19시 1시간 단위 (11회)
+RUN_HOURS_KST = (9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
 
 
 def now_kst() -> datetime:
@@ -168,21 +168,22 @@ def now_kst() -> datetime:
 
 
 def get_since_datetime(now: datetime, since_today_midnight: bool = False) -> datetime:
-    """직전 업데이트(정기 발송 슬롯) 시각 반환. KST 기준.
+    """직전 발송 슬롯 시각 반환. KST 기준.
     since_today_midnight=True: 당일 00:00 KST
-    False(정기): 10시→전날18시, 12시→당일10시, 15시→당일12시, 18시→당일15시
+    False(정기): 9시→전날19시, 10시→당일9시, …, 19시→당일18시
     """
     if since_today_midnight:
         return now.replace(hour=0, minute=0, second=0, microsecond=0)
     h = now.hour
-    if h < 12:
-        since = (now - timedelta(days=1)).replace(hour=18, minute=0, second=0, microsecond=0)
-    elif h < 15:
-        since = now.replace(hour=10, minute=0, second=0, microsecond=0)
-    elif h < 18:
-        since = now.replace(hour=12, minute=0, second=0, microsecond=0)
+    if h == 9:
+        since = (now - timedelta(days=1)).replace(hour=19, minute=0, second=0, microsecond=0)
+    elif 10 <= h <= 19:
+        since = now.replace(hour=h - 1, minute=0, second=0, microsecond=0)
     else:
-        since = now.replace(hour=15, minute=0, second=0, microsecond=0)
+        if h < 9:
+            since = (now - timedelta(days=1)).replace(hour=19, minute=0, second=0, microsecond=0)
+        else:
+            since = now.replace(hour=18, minute=0, second=0, microsecond=0)
     return since
 
 

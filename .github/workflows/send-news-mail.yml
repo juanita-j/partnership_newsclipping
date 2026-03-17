@@ -1,17 +1,24 @@
-# 하루 4회(한국 10/12/15/18시) 임원인사 뉴스 메일 발송
-# 직전 업데이트 이후 기사만 포함. 제목: 인사변동 업데이트 (yy/mm/dd)
+# 1시간마다 발송 (KST 09:05~19:05, 11회) — 직전 1시간 구간 기사만 포함
+# 푸시 즉시 적용: 당일 남은 회차부터 스케줄 실행 (다음날부터 아님)
 # 필수 Secrets: GMAIL_APP_PASSWORD, NAVER_CLIENT_ID, NAVER_CLIENT_SECRET, OPENAI_API_KEY
 
 name: Send News Mail
 
 on:
   schedule:
-    # 매시 정각(0분)은 GitHub 부하로 스케줄 누락될 수 있음 → 8분으로 이동 (KST 10:08, 12:08, 15:08, 18:08)
-    - cron: '8 1 * * *'
-    - cron: '8 3 * * *'
-    - cron: '8 6 * * *'
-    - cron: '8 9 * * *'
-  # 수시 발송: "Run workflow" 클릭 → 당일 00:00~요청 시각 기사로 메일 발송
+    # KST 9시~19시 매시 5분 (정각 부하 회피). UTC: 0~10시 5분. 푸시 후 당일 남은 시각부터 실행
+    - cron: '5 0 * * *'
+    - cron: '5 1 * * *'
+    - cron: '5 2 * * *'
+    - cron: '5 3 * * *'
+    - cron: '5 4 * * *'
+    - cron: '5 5 * * *'
+    - cron: '5 6 * * *'
+    - cron: '5 7 * * *'
+    - cron: '5 8 * * *'
+    - cron: '5 9 * * *'
+    - cron: '5 10 * * *'
+  # 수시 발송: "Run workflow" 클릭 → 당일 00:00 KST~요청 시각 기사로 메일 발송
   workflow_dispatch:
 
 env:
