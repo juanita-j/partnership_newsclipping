@@ -1,0 +1,23 @@
+# LLM 요약 설정
+# 환경변수 OPENAI_API_KEY 또는 ANTHROPIC_API_KEY 등으로 API 키 설정
+
+# 사용할 LLM: openai | anthropic (추가 가능)
+provider: openai
+
+# 모델 (환경변수 OPENAI_SUMMARY_MODEL, ANTHROPIC_SUMMARY_MODEL 로 오버라이드 가능)
+openai:
+  model: gpt-4o-mini
+  max_tokens: 500
+
+anthropic:
+  model: claude-3-5-haiku-20241022
+  max_tokens: 500
+
+# 시스템 프롬프트 (요약 지시)
+system_prompt: |
+  한국어 뉴스 기사를 3줄 이상 7줄 이하로 요약해 주세요.
+  핵심 사실만 간결하게 적고, 번호나 불릿 없이 문장만 줄바꿈으로 구분해 주세요.
+  제목의 내용을 반복하지 말고 본문 중심으로 요약하세요.
+
+# 본문 최대 길이(자) - 토큰 절약
+max_body_chars: 6000

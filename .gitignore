@@ -1,0 +1,9 @@
+data/last_send_at.txt
+data/*.json
+__pycache__/
+*.pyc
+.env
+.env.local
+*.log
+.venv/
+venv/

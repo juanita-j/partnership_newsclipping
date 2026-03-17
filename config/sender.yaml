@@ -1,0 +1,13 @@
+# 메일 발송 설정 (실제 값은 환경변수 또는 GitHub Secrets 권장)
+smtp:
+  host: ""  # 예: smtp.worksmobile.com
+  port: 587
+  use_tls: true
+
+# 기본 수신자 (환경변수 SENDER_TO로 오버라이드 가능)
+default_to: []
+default_subject: "[파트너사 뉴스 클리핑] {{date}}"
+
+# WORKS 메일 등 외부 API 사용 시
+# api_endpoint: ""
+# content_type: "html"
