@@ -60,12 +60,17 @@ def collect_all(since: datetime, limit_per_partner: int = 30) -> list:
     return articles
 
 
+# 한 번에 요약할 최대 기사 수 (과다 시 GitHub Actions 등에서 타임아웃 방지, 환경변수로 오버라이드)
+MAX_ARTICLES_TO_SUMMARIZE = 200
+
+
 def run(dry_run: bool = False, use_llm: bool = True) -> bool:
     """
     배치 1회 실행.
     dry_run: True면 수집·필터·요약·HTML 생성만 하고 발송하지 않음.
     use_llm: True면 LLM으로 요약(설정/API 키에 따라 OpenAI 또는 Anthropic), False면 규칙 기반만.
     """
+    import os
     since = get_since_for_collect()
     print(f"[배치] 수집 시작 시점: {since}")
 
@@ -79,7 +84,12 @@ def run(dry_run: bool = False, use_llm: bool = True) -> bool:
         print("[배치] 발송할 기사 없음. 종료.")
         return True
 
-    summarized = summarize_batch(filtered, use_llm=use_llm)
+    cap = int(os.environ.get("MAX_ARTICLES_TO_SUMMARIZE", MAX_ARTICLES_TO_SUMMARIZE))
+    to_summarize = filtered[:cap]
+    if len(filtered) > cap:
+        print(f"[배치] 요약 상한 적용: {len(filtered)}건 중 {cap}건만 요약합니다.")
+
+    summarized = summarize_batch(to_summarize, use_llm=use_llm)
     # 회사별 그룹핑
     grouped: dict[str, list] = {}
     for article, summary in summarized:

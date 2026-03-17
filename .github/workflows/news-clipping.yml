@@ -8,6 +8,7 @@ on:
 jobs:
   run:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -21,6 +22,7 @@ jobs:
 
       - name: Run batch
         env:
+          MAX_ARTICLES_TO_SUMMARIZE: "200"
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           # LLM 요약: OPENAI_API_KEY 또는 ANTHROPIC_API_KEY (config/summarizer.yaml의 provider와 맞출 것)

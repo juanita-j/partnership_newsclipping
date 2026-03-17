@@ -52,7 +52,10 @@ class OpenAISummarizer(BaseLLMSummarizer):
             return None
         try:
             from openai import OpenAI
-            client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+            client = OpenAI(
+                api_key=os.environ.get("OPENAI_API_KEY"),
+                timeout=60.0,
+            )
             content = f"제목: {title}\n\n본문:\n{(body or '')[:self.max_body]}"
             resp = client.chat.completions.create(
                 model=self.model,
@@ -86,7 +89,10 @@ class AnthropicSummarizer(BaseLLMSummarizer):
             return None
         try:
             from anthropic import Anthropic
-            client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+            client = Anthropic(
+                api_key=os.environ.get("ANTHROPIC_API_KEY"),
+                timeout=60.0,
+            )
             content = f"제목: {title}\n\n본문:\n{(body or '')[:self.max_body]}"
             msg = client.messages.create(
                 model=self.model,

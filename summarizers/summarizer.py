@@ -60,4 +60,13 @@ def _fallback_summary(text: str) -> str:
 
 def summarize_batch(articles: list[Article], use_llm: bool = True) -> list[tuple[Article, str]]:
     """여러 기사 요약. (Article, summary_text) 리스트 반환. 기본은 LLM 사용."""
-    return [(a, summarize_article(a, use_llm=use_llm)) for a in articles]
+    total = len(articles)
+    result = []
+    for i, a in enumerate(articles):
+        if total >= 20:
+            if i == 0:
+                print(f"[배치] 요약 시작: 총 {total}건 (50건마다 진행 로그)")
+            elif (i + 1) % 50 == 0:
+                print(f"[배치] 요약 진행: {i + 1}/{total}")
+        result.append((a, summarize_article(a, use_llm=use_llm)))
+    return result
