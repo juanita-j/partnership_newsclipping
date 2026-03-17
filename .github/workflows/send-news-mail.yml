@@ -6,11 +6,11 @@ name: Send News Mail
 
 on:
   schedule:
-    # KST 10시, 12시, 15시, 18시 = UTC 01:00, 03:00, 06:00, 09:00
-    - cron: '0 1 * * *'
-    - cron: '0 3 * * *'
-    - cron: '0 6 * * *'
-    - cron: '0 9 * * *'
+    # 매시 정각(0분)은 GitHub 부하로 스케줄 누락될 수 있음 → 8분으로 이동 (KST 10:08, 12:08, 15:08, 18:08)
+    - cron: '8 1 * * *'
+    - cron: '8 3 * * *'
+    - cron: '8 6 * * *'
+    - cron: '8 9 * * *'
   # 수시 발송: "Run workflow" 클릭 → 당일 00:00~요청 시각 기사로 메일 발송
   workflow_dispatch:
 
