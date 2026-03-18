@@ -151,3 +151,7 @@ partners:
     names: [Palantir, 팔란티어]
   - id: tencent
     names: [Tencent, 텐센트]
+  - id: sbs
+    names: [SBS]
+  - id: amd
+    names: [AMD]

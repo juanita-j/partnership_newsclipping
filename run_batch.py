@@ -19,6 +19,7 @@ from collectors.google_news import GoogleNewsCollector
 from filters.keyword_filter import filter_articles
 from summarizers.summarizer import summarize_batch
 from compose.html_composer import build_html
+from compose.merge_same_topic import merge_by_topic
 from sender.send import send_mail
 
 
@@ -91,15 +92,20 @@ def run(dry_run: bool = False, use_llm: bool = True) -> bool:
 
     summarized = summarize_batch(to_summarize, use_llm=use_llm)
     # 회사별 그룹핑 + 동일 제목 기사는 하나만 유지
-    grouped: dict[str, list] = {}
+    grouped_raw: dict[str, list] = {}
     for article, summary in summarized:
         pid = article.partner_id
-        if pid not in grouped:
-            grouped[pid] = []
+        if pid not in grouped_raw:
+            grouped_raw[pid] = []
         title_key = (article.title or "").strip()
-        if any((a.title or "").strip() == title_key for a, _ in grouped[pid]):
+        if any((a.title or "").strip() == title_key for a, _ in grouped_raw[pid]):
             continue
-        grouped[pid].append((article, summary))
+        grouped_raw[pid].append((article, summary))
+
+    # 동일 주제 기사 하나의 불릿으로 병합 (임베딩 유사도)
+    grouped: dict[str, list] = {}
+    for pid, pairs in grouped_raw.items():
+        grouped[pid] = merge_by_topic(pairs)
 
     subject_date = datetime.now(timezone(timedelta(hours=9))).strftime("%y/%m/%d")
     html = build_html(grouped, subject_date=subject_date)

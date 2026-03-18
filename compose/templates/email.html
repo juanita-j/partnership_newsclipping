@@ -5,31 +5,59 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>[뉴스클리핑] 파트너사 주요 뉴스 ({{ date }})</title>
   <style>
-    body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; line-height: 1.5; color: #222; max-width: 720px; margin: 0 auto; padding: 16px; }
-    h1 { font-size: 1.25rem; border-bottom: 1px solid #ddd; padding-bottom: 8px; }
-    h2 { font-size: 1.1rem; margin-top: 20px; margin-bottom: 8px; color: #333; }
+    body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-size: 1rem; line-height: 1.5; color: #222; max-width: 720px; margin: 0 auto; padding: 16px; }
+    .section-heading { font-size: calc(1rem + 2pt); font-weight: bold; margin-top: 24px; margin-bottom: 12px; color: #222; }
+    .company-name { font-size: 1rem; font-weight: bold; margin-top: 16px; margin-bottom: 8px; color: #333; }
     ul { list-style: none; padding-left: 0; margin: 0; }
-    ul.articles > li { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #eee; }
+    ul.articles > li { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #eee; font-size: 1rem; }
     ul.articles > li:last-child { border-bottom: none; }
-    ul.sub-bullet { list-style: disc; padding-left: 20px; margin: 6px 0 0 0; }
-    ul.sub-bullet li { margin-bottom: 4px; }
+    ul.sub-bullet { list-style: disc; padding-left: 24px; margin: 6px 0 0 0; }
+    ul.sub-bullet li { margin-bottom: 4px; font-size: 1rem; color: #444; }
     a { color: #1a73e8; text-decoration: none; font-weight: normal; }
     a:hover { text-decoration: underline; }
     .article-date { color: #666; font-size: 0.9rem; }
-    .summary { color: #444; font-size: 0.95rem; white-space: pre-line; }
+    .related-label { color: #666; font-size: 0.9rem; }
   </style>
 </head>
 <body>
-  <h1>[뉴스클리핑] 파트너사 주요 뉴스 ({{ date }})</h1>
-  {% for partner_id, pairs in grouped.items() %}
-  <h2>{{ display_names.get(partner_id) or partner_id }}</h2>
+  <p class="section-heading">I. 국내 기업</p>
+  {% for partner_id, items in domestic_grouped %}
+  <p class="company-name">{{ display_names.get(partner_id) or partner_id }}</p>
   <ul class="articles">
-    {% for article, summary in pairs %}
+    {% for main_article, summary, all_articles in items %}
     <li>
-      <a href="{{ article.url }}" style="font-weight: normal;">{{ article.title }}</a>
-      {% if article.published_at %}<span class="article-date"> ({{ article.published_at | mmdd }})</span>{% endif %}
+      <a href="{{ main_article.url }}" style="font-weight: normal;">{{ main_article.title }}</a>
+      {% if main_article.published_at %}<span class="article-date"> ({{ main_article.published_at | mmdd }})</span>{% endif %}
+      {% if all_articles|length > 1 %}
+      {% set others = all_articles|selectattr('url', 'ne', main_article.url)|list %}
+      {% if others %}<span class="related-label"> 관련 기사: </span>{% for art in others %}<a href="{{ art.url }}" style="font-weight: normal;">{{ art.title }}</a>{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
+      {% endif %}
       <ul class="sub-bullet">
-        <li class="summary">{{ summary }}</li>
+        {% for line in summary.split('\n') %}
+        {% if line.strip() %}<li>{{ line }}</li>{% endif %}
+        {% endfor %}
+      </ul>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endfor %}
+
+  <p class="section-heading">II. 글로벌 기업</p>
+  {% for partner_id, items in global_grouped %}
+  <p class="company-name">{{ display_names.get(partner_id) or partner_id }}</p>
+  <ul class="articles">
+    {% for main_article, summary, all_articles in items %}
+    <li>
+      <a href="{{ main_article.url }}" style="font-weight: normal;">{{ main_article.title }}</a>
+      {% if main_article.published_at %}<span class="article-date"> ({{ main_article.published_at | mmdd }})</span>{% endif %}
+      {% if all_articles|length > 1 %}
+      {% set others = all_articles|selectattr('url', 'ne', main_article.url)|list %}
+      {% if others %}<span class="related-label"> 관련 기사: </span>{% for art in others %}<a href="{{ art.url }}" style="font-weight: normal;">{{ art.title }}</a>{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
+      {% endif %}
+      <ul class="sub-bullet">
+        {% for line in summary.split('\n') %}
+        {% if line.strip() %}<li>{{ line }}</li>{% endif %}
+        {% endfor %}
       </ul>
     </li>
     {% endfor %}
