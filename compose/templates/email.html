@@ -20,44 +20,44 @@
   </style>
 </head>
 <body>
-  <p class="section-heading">I. 국내 기업</p>
+  <p class="section-heading" style="font-weight: bold;">I. 국내 기업</p>
   {% for partner_id, items in domestic_grouped %}
-  <p class="company-name">{{ display_names.get(partner_id) or partner_id }}</p>
+  <p class="company-name" style="font-weight: bold;">{{ loop.index }}. {{ display_names.get(partner_id) or partner_id }}</p>
   <ul class="articles">
     {% for main_article, summary, all_articles in items %}
     <li>
       <a href="{{ main_article.url }}" style="font-weight: normal;">{{ main_article.title }}</a>
       {% if main_article.published_at %}<span class="article-date"> ({{ main_article.published_at | mmdd }})</span>{% endif %}
-      {% if all_articles|length > 1 %}
-      {% set others = all_articles|selectattr('url', 'ne', main_article.url)|list %}
-      {% if others %}<span class="related-label"> 관련 기사: </span>{% for art in others %}<a href="{{ art.url }}" style="font-weight: normal;">{{ art.title }}</a>{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
-      {% endif %}
       <ul class="sub-bullet">
-        {% for line in summary.split('\n') %}
-        {% if line.strip() %}<li>{{ line }}</li>{% endif %}
+        {% for sentence in summary|sentences %}
+        <li>{{ sentence }}</li>
         {% endfor %}
+        {% if all_articles|length > 1 %}
+        {% set others = all_articles|selectattr('url', 'ne', main_article.url)|list %}
+        {% if others %}<li><span class="related-label">관련 기사: </span>{% for art in others %}<a href="{{ art.url }}" style="font-weight: normal;">기사 {{ loop.index }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</li>{% endif %}
+        {% endif %}
       </ul>
     </li>
     {% endfor %}
   </ul>
   {% endfor %}
 
-  <p class="section-heading">II. 글로벌 기업</p>
+  <p class="section-heading" style="font-weight: bold;">II. 글로벌 기업</p>
   {% for partner_id, items in global_grouped %}
-  <p class="company-name">{{ display_names.get(partner_id) or partner_id }}</p>
+  <p class="company-name" style="font-weight: bold;">{{ loop.index }}. {{ display_names.get(partner_id) or partner_id }}</p>
   <ul class="articles">
     {% for main_article, summary, all_articles in items %}
     <li>
       <a href="{{ main_article.url }}" style="font-weight: normal;">{{ main_article.title }}</a>
       {% if main_article.published_at %}<span class="article-date"> ({{ main_article.published_at | mmdd }})</span>{% endif %}
-      {% if all_articles|length > 1 %}
-      {% set others = all_articles|selectattr('url', 'ne', main_article.url)|list %}
-      {% if others %}<span class="related-label"> 관련 기사: </span>{% for art in others %}<a href="{{ art.url }}" style="font-weight: normal;">{{ art.title }}</a>{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
-      {% endif %}
       <ul class="sub-bullet">
-        {% for line in summary.split('\n') %}
-        {% if line.strip() %}<li>{{ line }}</li>{% endif %}
+        {% for sentence in summary|sentences %}
+        <li>{{ sentence }}</li>
         {% endfor %}
+        {% if all_articles|length > 1 %}
+        {% set others = all_articles|selectattr('url', 'ne', main_article.url)|list %}
+        {% if others %}<li><span class="related-label">관련 기사: </span>{% for art in others %}<a href="{{ art.url }}" style="font-weight: normal;">기사 {{ loop.index }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</li>{% endif %}
+        {% endif %}
       </ul>
     </li>
     {% endfor %}

@@ -132,3 +132,147 @@ def _normalize(s: str) -> str:
     s = re.sub(r"^[\d\.\-\*]+\s*", "", s, flags=re.M)
     lines = [ln.strip() for ln in s.splitlines() if ln.strip()]
     return "\n".join(lines[: TARGET_LINES[1]])
+
+
+# --- 동일 사건 판별 (dedup용). 기존 provider/config 재사용 ---
+SAME_EVENT_SYSTEM = """당신은 뉴스 기사 쌍이 동일한 사건/이벤트를 다루는지 판단하는 판별기이다.
+두 기사가 같은 일(발표, 계약, 인사, 출시, 실적 등)을 다루면 동일 사건이다.
+제목/표현만 다르고 내용이 같으면 동일이다. 전혀 다른 주제면 아니다.
+답변 형식: 한 줄에 YES 또는 NO만 출력. 선택적으로 괄호 안에 신뢰도 0.0~1.0을 붙여도 된다. 예: YES (0.9) 또는 NO"""
+
+
+def judge_same_event(
+    title1: str, summary1: str, title2: str, summary2: str,
+    config: dict | None = None,
+) -> tuple[bool, float]:
+    """
+    두 기사가 동일한 사건을 다루는지 LLM으로 판별.
+    기존 summarizer와 동일한 provider(OpenAI/Anthropic) 사용.
+    반환: (is_same_event, confidence 0.0~1.0)
+    """
+    cfg = config or load_config()
+    text1 = f"제목: {title1 or ''}\n요약: {(summary1 or '')[:800]}"
+    text2 = f"제목: {title2 or ''}\n요약: {(summary2 or '')[:800]}"
+    user_content = f"다음 두 뉴스 기사가 동일한 사건을 다루고 있는지 판단하라. 동일하면 YES, 아니면 NO.\n\n[기사1]\n{text1}\n\n[기사2]\n{text2}"
+
+    if os.environ.get("OPENAI_API_KEY"):
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"), timeout=30.0)
+            cfg_openai = cfg.get("openai") or {}
+            model = os.environ.get("OPENAI_SUMMARY_MODEL") or cfg_openai.get("model", "gpt-4o-mini")
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": SAME_EVENT_SYSTEM},
+                    {"role": "user", "content": user_content},
+                ],
+                max_tokens=50,
+            )
+            out = (resp.choices[0].message.content or "").strip().upper()
+            return _parse_yes_no(out)
+        except Exception:
+            return False, 0.0
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        try:
+            from anthropic import Anthropic
+            client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"), timeout=30.0)
+            cfg_ant = cfg.get("anthropic") or {}
+            model = os.environ.get("ANTHROPIC_SUMMARY_MODEL") or cfg_ant.get("model", "claude-3-5-haiku-20241022")
+            msg = client.messages.create(
+                model=model,
+                max_tokens=50,
+                system=SAME_EVENT_SYSTEM,
+                messages=[{"role": "user", "content": user_content}],
+            )
+            out = ""
+            if msg.content and len(msg.content) > 0 and hasattr(msg.content[0], "text"):
+                out = (msg.content[0].text or "").strip().upper()
+            return _parse_yes_no(out)
+        except Exception:
+            return False, 0.0
+    return False, 0.0
+
+
+def judge_same_event_batch(
+    pairs: list[tuple[str, str, str, str]],
+    config: dict | None = None,
+) -> list[tuple[bool, float]]:
+    """
+    여러 쌍을 한 번에 판별 (호출 횟수 절감).
+    pairs: [(title1, summary1, title2, summary2), ...]
+    반환: [(is_same, confidence), ...]
+    """
+    if not pairs:
+        return []
+    cfg = config or load_config()
+    parts = []
+    for i, (t1, s1, t2, s2) in enumerate(pairs):
+        parts.append(f"[쌍{i+1}]\n기사1 제목: {t1 or ''}\n기사1 요약: {(s1 or '')[:400]}\n기사2 제목: {t2 or ''}\n기사2 요약: {(s2 or '')[:400]}")
+    user_content = "다음 각 쌍이 동일한 사건을 다루는지 판단하라. 동일하면 YES, 아니면 NO. 각 쌍마다 한 줄에 YES 또는 NO만 순서대로 출력.\n\n" + "\n\n".join(parts)
+
+    if os.environ.get("OPENAI_API_KEY"):
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"), timeout=60.0)
+            cfg_openai = cfg.get("openai") or {}
+            model = os.environ.get("OPENAI_SUMMARY_MODEL") or cfg_openai.get("model", "gpt-4o-mini")
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": SAME_EVENT_SYSTEM},
+                    {"role": "user", "content": user_content[:12000]},
+                ],
+                max_tokens=min(200, 50 * len(pairs)),
+            )
+            out = (resp.choices[0].message.content or "").strip()
+            return _parse_yes_no_batch(out, len(pairs))
+        except Exception:
+            return [(False, 0.0)] * len(pairs)
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        try:
+            from anthropic import Anthropic
+            client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"), timeout=60.0)
+            cfg_ant = cfg.get("anthropic") or {}
+            model = os.environ.get("ANTHROPIC_SUMMARY_MODEL") or cfg_ant.get("model", "claude-3-5-haiku-20241022")
+            msg = client.messages.create(
+                model=model,
+                max_tokens=min(200, 50 * len(pairs)),
+                system=SAME_EVENT_SYSTEM,
+                messages=[{"role": "user", "content": user_content[:12000]}],
+            )
+            out = ""
+            if msg.content and len(msg.content) > 0 and hasattr(msg.content[0], "text"):
+                out = (msg.content[0].text or "").strip()
+            return _parse_yes_no_batch(out, len(pairs))
+        except Exception:
+            return [(False, 0.0)] * len(pairs)
+    return [(False, 0.0)] * len(pairs)
+
+
+def _parse_yes_no(s: str) -> tuple[bool, float]:
+    s = s.upper().strip()
+    conf = 0.8
+    m = re.search(r"\(([0-9.]+)\)", s)
+    if m:
+        try:
+            conf = float(m.group(1))
+            conf = max(0.0, min(1.0, conf))
+        except ValueError:
+            pass
+    return ("YES" in s[:10]), conf
+
+
+def _parse_yes_no_batch(block: str, n: int) -> list[tuple[bool, float]]:
+    lines = [ln.strip().upper() for ln in block.splitlines() if ln.strip()]
+    if len(lines) < n and lines:
+        first = lines[0].split()
+        if len(first) >= n:
+            lines = first[:n]
+    result = []
+    for i in range(n):
+        if i < len(lines):
+            result.append(_parse_yes_no(lines[i] if isinstance(lines[i], str) else str(lines[i])))
+        else:
+            result.append((False, 0.0))
+    return result

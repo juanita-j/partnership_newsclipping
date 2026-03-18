@@ -20,6 +20,7 @@ from filters.keyword_filter import filter_articles
 from summarizers.summarizer import summarize_batch
 from compose.html_composer import build_html
 from compose.merge_same_topic import merge_by_topic
+from dedup.dedup import dedup_articles
 from sender.send import send_mail
 
 
@@ -91,6 +92,8 @@ def run(dry_run: bool = False, use_llm: bool = True) -> bool:
         print(f"[배치] 요약 상한 적용: {len(filtered)}건 중 {cap}건만 요약합니다.")
 
     summarized = summarize_batch(to_summarize, use_llm=use_llm)
+    # 유사 기사 중복 제거 (exact + near duplicate)
+    summarized = dedup_articles(summarized)
     # 회사별 그룹핑 + 동일 제목 기사는 하나만 유지
     grouped_raw: dict[str, list] = {}
     for article, summary in summarized:

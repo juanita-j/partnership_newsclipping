@@ -62,6 +62,7 @@ def build_html(
             from jinja2 import Environment, FileSystemLoader
             env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)), autoescape=True)
             env.filters["mmdd"] = lambda d: d.strftime("%m/%d") if d else ""
+            env.filters["sentences"] = _summary_to_sentences
             tpl = env.get_template("email.html")
             return tpl.render(
                 date=subject_date,
@@ -86,26 +87,25 @@ def _default_html(
     for section_label, group_list in [("I. 국내 기업", domestic_grouped), ("II. 글로벌 기업", global_grouped)]:
         if not group_list:
             continue
-        parts.append(f"<p class='section-heading' style='{section_style}'>{_escape(section_label)}</p>")
-        for partner_id, items in group_list:
+        parts.append(f"<p class='section-heading' style='{section_style} font-weight: bold;'>{_escape(section_label)}</p>")
+        for idx, (partner_id, items) in enumerate(group_list, 1):
             name = display_names.get(partner_id) or partner_id
-            parts.append(f"<p class='company-name'>{_escape(name)}</p>")
+            parts.append(f"<p class='company-name' style='font-weight: bold;'>{idx}. {_escape(name)}</p>")
             parts.append("<ul class='articles'>")
             for main_article, summary, all_articles in items:
                 date_str = _format_article_date(main_article)
-                summary_lines = [ln.strip() for ln in (summary or "").split("\n") if ln.strip()]
-                sub_items = "".join(f"<li>{_escape(ln)}</li>" for ln in summary_lines)
-                related = ""
+                summary_sentences = _summary_to_sentences(summary or "")
+                sub_items = "".join(f"<li>{_escape(s)}</li>" for s in summary_sentences)
                 others = [a for a in all_articles if a.url != main_article.url]
                 if others:
                     related_links = ", ".join(
-                        f"<a href='{_escape(a.url)}' style='font-weight: normal;'>{_escape(a.title)}</a>"
-                        for a in others
+                        f"<a href='{_escape(a.url)}' style='font-weight: normal;'>기사 {i}</a>"
+                        for i, a in enumerate(others, 1)
                     )
-                    related = f" <span class='related-label'>관련 기사: </span>{related_links}"
+                    sub_items += f"<li><span class='related-label'>관련 기사: </span>{related_links}</li>"
                 parts.append(
                     f"<li><a href='{_escape(main_article.url)}' style='font-weight: normal;'>{_escape(main_article.title)}</a>"
-                    f"{date_str}{related}<ul class='sub-bullet'>{sub_items}</ul></li>"
+                    f"{date_str}<ul class='sub-bullet'>{sub_items}</ul></li>"
                 )
             parts.append("</ul>")
     parts.append("</body></html>")
@@ -121,6 +121,26 @@ def _format_article_date(article: Article) -> str:
         return f" <span class='article-date'>({dt.strftime('%m/%d')})</span>"
     except Exception:
         return ""
+
+
+def _summary_to_sentences(text: str) -> list[str]:
+    """요약 텍스트를 문장 단위로 분리 (마침표·줄바꿈 기준). 각 문장 한 불릿용."""
+    if not text or not isinstance(text, str):
+        return []
+    import re
+    s = text.strip()
+    if not s:
+        return []
+    parts = re.split(r"\.\s+|\n+", s)
+    result = []
+    for p in parts:
+        p = p.strip()
+        if not p:
+            continue
+        if not p.endswith("."):
+            p = p + "."
+        result.append(p)
+    return result
 
 
 def _escape(s: str) -> str:
