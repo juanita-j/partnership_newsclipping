@@ -3,28 +3,34 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>파트너사 뉴스 클리핑 {{ date }}</title>
+  <title>[뉴스클리핑] 파트너사 주요 뉴스 ({{ date }})</title>
   <style>
     body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; line-height: 1.5; color: #222; max-width: 720px; margin: 0 auto; padding: 16px; }
     h1 { font-size: 1.25rem; border-bottom: 1px solid #ddd; padding-bottom: 8px; }
     h2 { font-size: 1.1rem; margin-top: 20px; margin-bottom: 8px; color: #333; }
     ul { list-style: none; padding-left: 0; margin: 0; }
-    li { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #eee; }
-    li:last-child { border-bottom: none; }
-    a { color: #1a73e8; text-decoration: none; }
+    ul.articles > li { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #eee; }
+    ul.articles > li:last-child { border-bottom: none; }
+    ul.sub-bullet { list-style: disc; padding-left: 20px; margin: 6px 0 0 0; }
+    ul.sub-bullet li { margin-bottom: 4px; }
+    a { color: #1a73e8; text-decoration: none; font-weight: normal; }
     a:hover { text-decoration: underline; }
-    .summary { color: #444; font-size: 0.95rem; white-space: pre-line; margin-top: 4px; }
+    .article-date { color: #666; font-size: 0.9rem; }
+    .summary { color: #444; font-size: 0.95rem; white-space: pre-line; }
   </style>
 </head>
 <body>
-  <h1>파트너사 뉴스 클리핑 ({{ date }})</h1>
+  <h1>[뉴스클리핑] 파트너사 주요 뉴스 ({{ date }})</h1>
   {% for partner_id, pairs in grouped.items() %}
   <h2>{{ display_names.get(partner_id) or partner_id }}</h2>
-  <ul>
+  <ul class="articles">
     {% for article, summary in pairs %}
     <li>
-      <a href="{{ article.url }}">{{ article.title }}</a>
-      <div class="summary">{{ summary }}</div>
+      <a href="{{ article.url }}" style="font-weight: normal;">{{ article.title }}</a>
+      {% if article.published_at %}<span class="article-date"> ({{ article.published_at | mmdd }})</span>{% endif %}
+      <ul class="sub-bullet">
+        <li class="summary">{{ summary }}</li>
+      </ul>
     </li>
     {% endfor %}
   </ul>

@@ -90,17 +90,20 @@ def run(dry_run: bool = False, use_llm: bool = True) -> bool:
         print(f"[배치] 요약 상한 적용: {len(filtered)}건 중 {cap}건만 요약합니다.")
 
     summarized = summarize_batch(to_summarize, use_llm=use_llm)
-    # 회사별 그룹핑
+    # 회사별 그룹핑 + 동일 제목 기사는 하나만 유지
     grouped: dict[str, list] = {}
     for article, summary in summarized:
         pid = article.partner_id
         if pid not in grouped:
             grouped[pid] = []
+        title_key = (article.title or "").strip()
+        if any((a.title or "").strip() == title_key for a, _ in grouped[pid]):
+            continue
         grouped[pid].append((article, summary))
 
-    subject_date = datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d")
+    subject_date = datetime.now(timezone(timedelta(hours=9))).strftime("%y/%m/%d")
     html = build_html(grouped, subject_date=subject_date)
-    subject = f"[파트너사 뉴스 클리핑] {subject_date}"
+    subject = f"[뉴스클리핑] 파트너사 주요 뉴스 ({subject_date})"
 
     if dry_run:
         print("[배치] dry_run: 발송 생략. HTML 길이:", len(html))

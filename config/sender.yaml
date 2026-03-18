@@ -6,7 +6,7 @@ smtp:
 
 # 기본 수신자 (환경변수 SENDER_TO로 오버라이드 가능)
 default_to: []
-default_subject: "[파트너사 뉴스 클리핑] {{date}}"
+default_subject: "[뉴스클리핑] 파트너사 주요 뉴스 ({{date}})"
 
 # WORKS 메일 등 외부 API 사용 시
 # api_endpoint: ""
