@@ -11,6 +11,14 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Show commit (실행 중인 코드 확인)
+        run: |
+          git log -1 --oneline
+          echo "--- run_batch.py에 dedup 반영 여부 ---"
+          grep -n "dedup_articles" run_batch.py || true
 
       - name: Set up Python
         uses: actions/setup-python@v5
