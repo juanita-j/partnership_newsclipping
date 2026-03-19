@@ -64,6 +64,20 @@ def collect_all(since: datetime, limit_per_partner: int = 30) -> list:
 
 # 한 번에 요약할 최대 기사 수 (과다 시 GitHub Actions 등에서 타임아웃 방지, 환경변수로 오버라이드)
 MAX_ARTICLES_TO_SUMMARIZE = 200
+# 국내/글로벌 균형: 각 파트 최대 건수 (둘 합이 MAX 이하가 되도록, 글로벌 누락 방지)
+MAX_DOMESTIC_FOR_SUMMARY = 110
+MAX_GLOBAL_FOR_SUMMARY = 110
+
+
+def load_section_ids() -> tuple[list[str], list[str]]:
+    """(domestic partner_ids, global partner_ids) from config/sections.yaml."""
+    try:
+        import yaml
+        with open(ROOT / "config" / "sections.yaml", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        return list(data.get("domestic") or []), list(data.get("global") or [])
+    except Exception:
+        return [], []
 
 
 def run(dry_run: bool = False, use_llm: bool = True) -> bool:
@@ -86,10 +100,17 @@ def run(dry_run: bool = False, use_llm: bool = True) -> bool:
         print("[배치] 발송할 기사 없음. 종료.")
         return True
 
-    cap = int(os.environ.get("MAX_ARTICLES_TO_SUMMARIZE", MAX_ARTICLES_TO_SUMMARIZE))
-    to_summarize = filtered[:cap]
-    if len(filtered) > cap:
-        print(f"[배치] 요약 상한 적용: {len(filtered)}건 중 {cap}건만 요약합니다.")
+    domestic_ids, global_ids = load_section_ids()
+    domestic_set = set(domestic_ids)
+    global_set = set(global_ids)
+    domestic_articles = [a for a in filtered if a.partner_id in domestic_set]
+    global_articles = [a for a in filtered if a.partner_id in global_set]
+
+    max_dom = int(os.environ.get("MAX_DOMESTIC_FOR_SUMMARY", MAX_DOMESTIC_FOR_SUMMARY))
+    max_glob = int(os.environ.get("MAX_GLOBAL_FOR_SUMMARY", MAX_GLOBAL_FOR_SUMMARY))
+    to_summarize = domestic_articles[:max_dom] + global_articles[:max_glob]
+    if len(filtered) > len(to_summarize):
+        print(f"[배치] 요약 상한 적용: 국내 {len(domestic_articles)}→{min(len(domestic_articles), max_dom)}건, 글로벌 {len(global_articles)}→{min(len(global_articles), max_glob)}건")
 
     summarized = summarize_batch(to_summarize, use_llm=use_llm)
     # 유사 기사 중복 제거 (exact + near duplicate)

@@ -1,6 +1,156 @@
 # 메일 본문 파트 구분: I. 국내 기업 / II. 글로벌 기업
-# 아래 순서대로 표시됨 (해당 partner_id에 기사가 있을 때만 출력)
+# 머릿말(그룹)으로 묶어서 표시: 같은 그룹 기사는 하나의 번호 아래에 [회사표시명] (기사) 형태로 나열
 
+# 그룹 정의 (머릿말 이름 -> 해당 partner_ids). 없으면 기존처럼 partner_id 단위로 표시
+domestic_groups:
+  - name: 삼성
+    partners: [samsung, samsung_sds]
+  - name: 신라
+    partners: [shilla_dutyfree, hotel_shilla]
+  - name: SK
+    partners: [sk_hynix, sk, tmap_mobility]
+  - name: 현대
+    partners: [hyundai, hd_hyundai]
+  - name: LG
+    partners: [lg]
+  - name: GS
+    partners: [gs]
+  - name: 신세계
+    partners: [shinsegae]
+  - name: 스타벅스
+    partners: [starbucks]
+  - name: 이베이
+    partners: [ebay]
+  - name: 롯데
+    partners: [lotte]
+  - name: 카카오
+    partners: [kakao]
+  - name: CJ
+    partners: [cj]
+  - name: 대한항공
+    partners: [korean_air]
+  - name: 아시아나
+    partners: [asiana]
+  - name: 한진
+    partners: [hanjin]
+  - name: BGF
+    partners: [bgf]
+  - name: LS
+    partners: [ls]
+  - name: KT
+    partners: [kt]
+  - name: 쿠팡
+    partners: [coupang]
+  - name: 당근
+    partners: [daangn]
+  - name: 크래프톤
+    partners: [krafton]
+  - name: 휴맥스
+    partners: [humax]
+  - name: 농심
+    partners: [nongshim]
+  - name: 한화
+    partners: [hanwha]
+  - name: 두나무
+    partners: [dunamu]
+  - name: 우아한형제들
+    partners: [woowahan]
+  - name: 쏘카
+    partners: [socar]
+  - name: 다음
+    partners: [daum]
+  - name: 업스테이지
+    partners: [upstage]
+  - name: 인스파이어리조트
+    partners: [inspire]
+  - name: 이디야
+    partners: [ediya]
+  - name: 빗썸
+    partners: [bithumb]
+  - name: 코인원
+    partners: [coinone]
+  - name: 코빗
+    partners: [kobit]
+  - name: 메가박스
+    partners: [megabox]
+  - name: SBS
+    partners: [sbs]
+
+global_groups:
+  - name: Meta
+    partners: [meta]
+  - name: Airbnb
+    partners: [airbnb]
+  - name: 비바리퍼블리카
+    partners: [viva]
+  - name: Bytedance
+    partners: [bytedance]
+  - name: Uber
+    partners: [uber]
+  - name: Xsolla
+    partners: [xsolla]
+  - name: Adobe
+    partners: [adobe]
+  - name: Figma
+    partners: [figma]
+  - name: Appning
+    partners: [appning]
+  - name: Netflix
+    partners: [netflix]
+  - name: 하이브
+    partners: [hybe]
+  - name: 넥슨
+    partners: [nexon]
+  - name: Spotify
+    partners: [spotify]
+  - name: Disney
+    partners: [disney]
+  - name: LVMH
+    partners: [lvmh]
+  - name: CHANEL
+    partners: [chanel]
+  - name: 로레알
+    partners: [loreal]
+  - name: Huawei
+    partners: [huawei]
+  - name: 노보노디스크
+    partners: [novo_nordisk]
+  - name: Harman
+    partners: [harman]
+  - name: Visa
+    partners: [visa]
+  - name: Google
+    partners: [google]
+  - name: Microsoft
+    partners: [microsoft]
+  - name: Amazon
+    partners: [amazon]
+  - name: OpenAI
+    partners: [openai]
+  - name: Perplexity
+    partners: [perplexity]
+  - name: Anthropic
+    partners: [anthropic]
+  - name: Deepseek
+    partners: [deepseek]
+  - name: Apple
+    partners: [apple]
+  - name: Tesla
+    partners: [tesla]
+  - name: Alibaba
+    partners: [alibaba]
+  - name: Walmart
+    partners: [walmart]
+  - name: Oracle
+    partners: [oracle]
+  - name: Palantir
+    partners: [palantir]
+  - name: Tencent
+    partners: [tencent]
+  - name: AMD
+    partners: [amd]
+
+# 기존 flat 목록 (그룹 미사용 시 fallback)
 domestic:
   - samsung
   - shilla_dutyfree

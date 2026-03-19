@@ -8,6 +8,8 @@
     body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; font-size: 1rem; line-height: 1.5; color: #222; max-width: 720px; margin: 0 auto; padding: 16px; }
     .section-heading { font-size: calc(1rem + 2pt); font-weight: bold; margin-top: 24px; margin-bottom: 12px; color: #222; }
     .company-name { font-size: 1rem; font-weight: bold; margin-top: 16px; margin-bottom: 8px; color: #333; }
+    .company-num { display: inline-block; width: 2.2em; text-align: right; }
+    .partner-label { font-weight: bold; margin-right: 4px; }
     ul { list-style: none; padding-left: 0; margin: 0; }
     ul.articles > li { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #eee; font-size: 1rem; }
     ul.articles > li:last-child { border-bottom: none; }
@@ -21,11 +23,13 @@
 </head>
 <body>
   <p class="section-heading" style="font-weight: bold;">I. 국내 기업</p>
-  {% for partner_id, items in domestic_grouped %}
-  <p class="company-name" style="font-weight: bold;">{{ loop.index }}. {{ display_names.get(partner_id) or partner_id }}</p>
+  {% for headline, partners_with_items in domestic_grouped %}
+  <p class="company-name" style="font-weight: bold;"><span class="company-num">{{ loop.index }}.</span> {{ headline }}</p>
   <ul class="articles">
+    {% for partner_id, display_name, items in partners_with_items %}
     {% for main_article, summary, all_articles in items %}
     <li>
+      <span class="partner-label">[{{ display_name }}]</span>
       <a href="{{ main_article.url }}" style="font-weight: normal;">{{ main_article.title }}</a>
       {% if main_article.published_at %}<span class="article-date"> ({{ main_article.published_at | mmdd }})</span>{% endif %}
       <ul class="sub-bullet">
@@ -39,15 +43,18 @@
       </ul>
     </li>
     {% endfor %}
+    {% endfor %}
   </ul>
   {% endfor %}
 
   <p class="section-heading" style="font-weight: bold;">II. 글로벌 기업</p>
-  {% for partner_id, items in global_grouped %}
-  <p class="company-name" style="font-weight: bold;">{{ loop.index }}. {{ display_names.get(partner_id) or partner_id }}</p>
+  {% for headline, partners_with_items in global_grouped %}
+  <p class="company-name" style="font-weight: bold;"><span class="company-num">{{ loop.index }}.</span> {{ headline }}</p>
   <ul class="articles">
+    {% for partner_id, display_name, items in partners_with_items %}
     {% for main_article, summary, all_articles in items %}
     <li>
+      <span class="partner-label">[{{ display_name }}]</span>
       <a href="{{ main_article.url }}" style="font-weight: normal;">{{ main_article.title }}</a>
       {% if main_article.published_at %}<span class="article-date"> ({{ main_article.published_at | mmdd }})</span>{% endif %}
       <ul class="sub-bullet">
@@ -60,6 +67,7 @@
         {% endif %}
       </ul>
     </li>
+    {% endfor %}
     {% endfor %}
   </ul>
   {% endfor %}

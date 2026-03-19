@@ -27,6 +27,21 @@ def load_sections() -> tuple[list[str], list[str]]:
         return [], []
 
 
+def load_section_groups() -> tuple[list[dict], list[dict]]:
+    """(domestic_groups, global_groups). 각 항목은 {name: 머릿말, partners: [partner_id, ...]}."""
+    try:
+        import yaml
+        if not SECTIONS_FILE.exists():
+            return [], []
+        with open(SECTIONS_FILE, encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        domestic = data.get("domestic_groups") or []
+        global_list = data.get("global_groups") or []
+        return list(domestic), list(global_list)
+    except Exception:
+        return [], []
+
+
 def load_partner_display_names() -> dict[str, str]:
     """partner_id -> 표시 이름 (config의 names[0] 또는 id)."""
     try:
@@ -53,9 +68,23 @@ def build_html(
     if not subject_date:
         subject_date = datetime.now().strftime("%Y-%m-%d")
     display_names = load_partner_display_names()
-    domestic_ids, global_ids = load_sections()
-    domestic_grouped = [(pid, grouped[pid]) for pid in domestic_ids if pid in grouped and grouped[pid]]
-    global_grouped = [(pid, grouped[pid]) for pid in global_ids if pid in grouped and grouped[pid]]
+    domestic_groups, global_groups = load_section_groups()
+    if not domestic_groups:
+        domestic_ids, _ = load_sections()
+        domestic_grouped = [
+            (display_names.get(pid) or pid, [(pid, display_names.get(pid) or pid, grouped[pid])])
+            for pid in domestic_ids if pid in grouped and grouped[pid]
+        ]
+    else:
+        domestic_grouped = _build_grouped_by_headline(domestic_groups, grouped, display_names)
+    if not global_groups:
+        _, global_ids = load_sections()
+        global_grouped = [
+            (display_names.get(pid) or pid, [(pid, display_names.get(pid) or pid, grouped[pid])])
+            for pid in global_ids if pid in grouped and grouped[pid]
+        ]
+    else:
+        global_grouped = _build_grouped_by_headline(global_groups, grouped, display_names)
     template_file = TEMPLATES_DIR / "email.html"
     if template_file.exists():
         try:
@@ -81,35 +110,63 @@ def _default_html(
     global_grouped: list,
     display_names: dict[str, str],
 ) -> str:
-    """Jinja2 없을 때 기본 HTML. domestic/global_grouped = [(partner_id, items), ...]."""
+    """Jinja2 없을 때 기본 HTML. domestic/global_grouped = [(headline, [(partner_id, display_name, items), ...]), ...]."""
     parts = ["<!DOCTYPE html><html><head><meta charset='utf-8'></head><body>"]
     section_style = "font-size: 1.125rem; font-weight: bold; margin-top: 24px; margin-bottom: 12px;"
     for section_label, group_list in [("I. 국내 기업", domestic_grouped), ("II. 글로벌 기업", global_grouped)]:
         if not group_list:
             continue
         parts.append(f"<p class='section-heading' style='{section_style} font-weight: bold;'>{_escape(section_label)}</p>")
-        for idx, (partner_id, items) in enumerate(group_list, 1):
-            name = display_names.get(partner_id) or partner_id
-            parts.append(f"<p class='company-name' style='font-weight: bold;'>{idx}. {_escape(name)}</p>")
+        for idx, (headline, partners_with_items) in enumerate(group_list, 1):
+            parts.append(
+                f"<p class='company-name' style='font-weight: bold;'>"
+                f"<span class='company-num' style='display: inline-block; width: 2.2em; text-align: right;'>{idx}.</span> {_escape(headline)}</p>"
+            )
             parts.append("<ul class='articles'>")
-            for main_article, summary, all_articles in items:
-                date_str = _format_article_date(main_article)
-                summary_sentences = _summary_to_sentences(summary or "")
-                sub_items = "".join(f"<li>{_escape(s)}</li>" for s in summary_sentences)
-                others = [a for a in all_articles if a.url != main_article.url]
-                if others:
-                    related_links = ", ".join(
-                        f"<a href='{_escape(a.url)}' style='font-weight: normal;'>기사 {i}</a>"
-                        for i, a in enumerate(others, 1)
+            for _pid, display_name, items in partners_with_items:
+                for main_article, summary, all_articles in items:
+                    date_str = _format_article_date(main_article)
+                    summary_sentences = _summary_to_sentences(summary or "")
+                    sub_items = "".join(f"<li>{_escape(s)}</li>" for s in summary_sentences)
+                    others = [a for a in all_articles if a.url != main_article.url]
+                    if others:
+                        related_links = ", ".join(
+                            f"<a href='{_escape(a.url)}' style='font-weight: normal;'>기사 {i}</a>"
+                            for i, a in enumerate(others, 1)
+                        )
+                        sub_items += f"<li><span class='related-label'>관련 기사: </span>{related_links}</li>"
+                    parts.append(
+                        f"<li><span class='partner-label' style='font-weight: bold;'>[{_escape(display_name)}]</span> "
+                        f"<a href='{_escape(main_article.url)}' style='font-weight: normal;'>{_escape(main_article.title)}</a>"
+                        f"{date_str}<ul class='sub-bullet'>{sub_items}</ul></li>"
                     )
-                    sub_items += f"<li><span class='related-label'>관련 기사: </span>{related_links}</li>"
-                parts.append(
-                    f"<li><a href='{_escape(main_article.url)}' style='font-weight: normal;'>{_escape(main_article.title)}</a>"
-                    f"{date_str}<ul class='sub-bullet'>{sub_items}</ul></li>"
-                )
             parts.append("</ul>")
     parts.append("</body></html>")
     return "\n".join(parts)
+
+
+def _build_grouped_by_headline(
+    groups: list[dict],
+    grouped: dict,
+    display_names: dict[str, str],
+) -> list[tuple]:
+    """
+    그룹 설정에 따라 머릿말별로 묶음.
+    반환: [(group_name, [(partner_id, display_name, items), ...]), ...]
+    기사가 하나라도 있는 그룹만 포함.
+    """
+    result = []
+    for g in groups:
+        name = g.get("name") or ""
+        pids = g.get("partners") or []
+        partners_with_items = [
+            (pid, display_names.get(pid) or pid, grouped[pid])
+            for pid in pids
+            if pid in grouped and grouped[pid]
+        ]
+        if partners_with_items:
+            result.append((name, partners_with_items))
+    return result
 
 
 def _format_article_date(article: Article) -> str:
