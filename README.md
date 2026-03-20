@@ -27,6 +27,17 @@ python run_batch.py --no-llm # LLM 없이 규칙 기반 요약만 사용
 - **네이버**: `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET` ([네이버 개발자센터](https://developers.naver.com) 검색 API)
 - **요약(LLM)**: `OPENAI_API_KEY` 또는 `ANTHROPIC_API_KEY` (설정: `config/summarizer.yaml`, provider: openai | anthropic)
 - **메일**: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SENDER_FROM`, `SENDER_TO`
+  - Gmail 사용 시: `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_USER`·`SENDER_FROM`은 발신 Gmail 주소와 동일하게.
+  - **앱 비밀번호**는 코드/저장소에 넣지 말고 아래에 등록합니다.
+
+### Gmail 앱 비밀번호 등록 위치
+
+| 실행 환경 | 등록 방법 |
+|-----------|-----------|
+| **로컬 (PowerShell 등)** | `SMTP_PASSWORD` 환경변수에 16자리 앱 비밀번호 설정. 예: `$env:SMTP_PASSWORD="xxxx xxxx xxxx xxxx"` (세션 한정) 또는 시스템 환경 변수에 영구 등록. `SMTP_USER`도 `naverpartnership@gmail.com`으로 맞출 것. |
+| **GitHub Actions** | 저장소 **Settings → Secrets and variables → Actions → New repository secret** 에서 `SMTP_PASSWORD` 시크릿 생성 후 값에 앱 비밀번호 입력. 필요 시 `SMTP_USER`, `SENDER_FROM`도 같은 Gmail 주소로 시크릿 추가. |
+
+Google 계정에서 [보안](https://myaccount.google.com/security) → 2단계 인증 사용 후 **앱 비밀번호**를 생성하면 됩니다.
 
 ## 스케줄
 

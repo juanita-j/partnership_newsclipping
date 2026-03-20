@@ -40,7 +40,12 @@ def send_mail(
     port = int(os.environ.get("SMTP_PORT", smtp_cfg.get("port", 587)))
     user = os.environ.get("SMTP_USER", "")
     password = os.environ.get("SMTP_PASSWORD", "")
-    from_addr = from_addr or os.environ.get("SENDER_FROM") or user
+    from_addr = (
+        from_addr
+        or os.environ.get("SENDER_FROM")
+        or (cfg.get("from") or "").strip()
+        or user
+    )
     if isinstance(to, str):
         to = [to]
     to_list = to or os.environ.get("SENDER_TO", "").split(",")

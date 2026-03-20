@@ -1,8 +1,11 @@
-# 메일 발송 설정 (실제 값은 환경변수 또는 GitHub Secrets 권장)
+# 메일 발송 설정 (비밀번호는 환경변수 SMTP_PASSWORD 또는 GitHub Secrets 권장)
 smtp:
-  host: ""  # 예: smtp.worksmobile.com
+  host: smtp.gmail.com
   port: 587
   use_tls: true
+
+# 발신 주소 (환경변수 SENDER_FROM으로 오버라이드 가능)
+from: naverpartnership@gmail.com
 
 # 기본 수신자 (환경변수 SENDER_TO로 오버라이드 가능)
 default_to: []
