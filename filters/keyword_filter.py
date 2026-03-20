@@ -1,8 +1,12 @@
 """
 주요 뉴스 키워드 필터: config/keywords.yaml 기준 1개 이상 포함 시 통과.
 블로그 URL 제외, URL 기준 중복 제거.
-제목에 파트너사명 미포함·코스피/코스닥/소액주주·특집/인사이트 리포트 등 관련도 낮은 기사 제외.
+제목에 파트너사명 미포함·코스피/코스닥·공시/배당/주가·특집/리포트 등
+(신제품·전략·재무·사업 리스크 중심이 아닌) 관련도 낮은 기사·채용/공채/신입 뉴스 제외.
 """
+from __future__ import annotations
+
+import re
 from pathlib import Path
 
 from collectors.base import Article
@@ -41,7 +45,86 @@ EXCLUDE_KEYWORDS = [
     "C-레벨 탐구",
     "C레벨 탐구",
     "Who?",
+    # 보고서·주가 변동 위주 기사 제외
+    "보고서 발표",
+    "주식 가격 상승",
+    "주식 가격 하락",
+    "주식 가격 변동",
+    "주가 상승",
+    "주가 하락",
+    "주가 변동",
+    "주가 급락",
+    "주가 급등",
+    "주가 상승 이유",
+    "특징주",
+    # 공시·배당·산학·조사·리포트·콘텐츠 비본업 뉴스
+    "공시",
+    "배당",
+    "산학협력",
+    "설문조사",
+    "트렌드 리포트",
+    "카피라이터",
+    # 채용·공채 관련
+    "채용",
+    "공채",
+    "신입",
 ]
+
+# 제목·본문에서 단어 경계로만 인정할 파트너 id (현재: 메타 — '메타비아'·'메타세쿼이아' 등 제외)
+_STANDALONE_KO_META_PARTNERS = frozenset({"meta"})
+
+# 한글/영숫자 등 — 띄어쓰기 없이 붙으면 동일 단어로 보지 않음
+_BOUNDARY_OK = frozenset(
+    " \t\n\r,.;:!?'\"()[]{}「」【】·<>《》〈〉…／/\\-•|&@#%^*+=~`"
+)
+
+
+def _is_word_gluing_char(c: str) -> bool:
+    """True면 앞뒤 글자와 같은 '단어'로 붙은 것으로 간주."""
+    if not c:
+        return False
+    if c.isspace() or c in _BOUNDARY_OK:
+        return False
+    o = ord(c)
+    if 0xAC00 <= o <= 0xD7A3:  # 한글 음절
+        return True
+    if c.isascii() and (c.isalnum() or c == "_"):
+        return True
+    return False
+
+
+def _has_standalone_substring(text: str, needle: str) -> bool:
+    """needle이 단독 토큰으로 등장하는지(앞뒤에 한글·영숫자 등이 바로 붙지 않음)."""
+    if not text or not needle:
+        return False
+    nlen = len(needle)
+    start = 0
+    while True:
+        idx = text.find(needle, start)
+        if idx == -1:
+            return False
+        left_ok = idx == 0 or not _is_word_gluing_char(text[idx - 1])
+        right_ok = idx + nlen >= len(text) or not _is_word_gluing_char(text[idx + nlen])
+        if left_ok and right_ok:
+            return True
+        start = idx + nlen
+
+
+def _meta_title_matches_partner_names(title: str, names: list[str]) -> bool:
+    """Meta / 메타: 단독 표기만 인정. 그 외 별칭은 부분 문자열 매칭."""
+    for raw in names:
+        name = (raw or "").strip()
+        if not name:
+            continue
+        if name == "메타":
+            if _has_standalone_substring(title, "메타"):
+                return True
+        elif name.lower() == "meta":
+            if re.search(r"(?<![A-Za-z])Meta(?![A-Za-z])", title, re.IGNORECASE):
+                return True
+        elif name in title:
+            return True
+    return False
 
 
 def load_keywords() -> list[str]:
@@ -103,6 +186,8 @@ def _title_contains_partner(article: Article, partner_names: dict[str, list[str]
     if not names:
         return True
     title = article.title or ""
+    if article.partner_id in _STANDALONE_KO_META_PARTNERS:
+        return _meta_title_matches_partner_names(title, names)
     return any(name in title for name in names)
 
 

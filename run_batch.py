@@ -131,8 +131,9 @@ def run(dry_run: bool = False, use_llm: bool = True) -> bool:
     for pid, pairs in grouped_raw.items():
         grouped[pid] = merge_by_topic(pairs)
 
-    subject_date = datetime.now(timezone(timedelta(hours=9))).strftime("%y/%m/%d")
-    html = build_html(grouped, subject_date=subject_date)
+    now_kst = datetime.now(timezone(timedelta(hours=9)))
+    subject_date = now_kst.strftime("%y/%m/%d")
+    html = build_html(grouped, subject_date=subject_date, reference_datetime=now_kst)
     subject = f"[뉴스클리핑] 파트너사 주요 뉴스 ({subject_date})"
 
     if dry_run:

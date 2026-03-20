@@ -1,12 +1,16 @@
 """
 유사 기사 중복 제거(dedup).
 - Exact duplicate: 동일 URL, 정규화 제목 동일 → 1건만 유지
-- Near duplicate: 동일 파트너 내에서 제목 유사도 휴리스틱 → LLM으로 동일 사건 여부 판별 → 그룹별 대표 1건만 유지
+- Near duplicate: 동일 파트너 내에서 (제목+요약+본문 일부) 토큰 Jaccard 및/또는 임베딩 유사도로 후보 생성
+  → LLM으로 동일 사건 판별(제목·요약·본문 발췌) → 그룹별 대표 1건만 유지
 """
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
+
+from collectors.base import Article
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 DEDUP_CONFIG_FILE = CONFIG_DIR / "dedup.yaml"
@@ -51,9 +55,12 @@ def load_dedup_config() -> dict:
     except Exception:
         pass
     return {
-        "title_jaccard_threshold": 0.15,
+        "title_jaccard_threshold": 0.10,
+        "heuristic_body_chars": 1600,
+        "use_embedding_candidates": True,
+        "embedding_similarity_threshold": 0.78,
         "use_llm_near_duplicate": True,
-        "llm_batch_pairs": 5,
+        "llm_batch_pairs": 3,
         "debug_log": True,
     }
 
@@ -81,13 +88,23 @@ def exact_dedup(
     return result
 
 
-def _candidate_pairs_same_partner(
+def _heuristic_text(article: Article, summary: str, body_max: int) -> str:
+    """제목+요약+본문 앞부분 — 서로 다른 제목이라도 본문에서 같은 사건 후보를 잡기 위함."""
+    return (
+        f"{article.title or ''}\n{summary or ''}\n{(article.body or '')[:body_max]}"
+    )
+
+
+def _candidate_pairs_jaccard_same_partner(
     pairs: list[tuple[Article, str]],
     jaccard_threshold: float,
+    body_chars: int,
 ) -> list[tuple[int, int]]:
-    """같은 partner_id 내에서 제목 Jaccard >= threshold인 (i,j) 인덱스 쌍 반환. i < j."""
+    """같은 partner_id 내에서 (제목+요약+본문 일부) 토큰 Jaccard >= threshold인 (i,j). i < j."""
     n = len(pairs)
-    tokens_list = [_title_tokens((pairs[i][0].title or "")) for i in range(n)]
+    tokens_list = [
+        _title_tokens(_heuristic_text(pairs[i][0], pairs[i][1], body_chars)) for i in range(n)
+    ]
     candidates = []
     for i in range(n):
         for j in range(i + 1, n):
@@ -96,6 +113,81 @@ def _candidate_pairs_same_partner(
             if _jaccard(tokens_list[i], tokens_list[j]) >= jaccard_threshold:
                 candidates.append((i, j))
     return candidates
+
+
+def _cosine_sim(a: list[float], b: list[float]) -> float:
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    dot = sum(x * y for x, y in zip(a, b))
+    na = sum(x * x for x in a) ** 0.5
+    nb = sum(x * x for x in b) ** 0.5
+    if na == 0 or nb == 0:
+        return 0.0
+    return dot / (na * nb)
+
+
+def _get_embeddings_for_texts(texts: list[str]) -> list[list[float]] | None:
+    """OpenAI embeddings. 실패 시 None."""
+    if not os.environ.get("OPENAI_API_KEY") or not texts:
+        return None
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"), timeout=60.0)
+        resp = client.embeddings.create(
+            model=os.environ.get("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
+            input=texts,
+        )
+        return [d.embedding for d in resp.data]
+    except Exception:
+        return None
+
+
+def _embedding_candidate_pairs_same_partner(
+    pairs: list[tuple[Article, str]],
+    threshold: float,
+    body_chars: int,
+) -> list[tuple[int, int]]:
+    """파트너별로 제목+요약+본문 일부 임베딩 후 코사인 유사도 >= threshold 인 쌍."""
+    by_partner: dict[str, list[int]] = {}
+    for i, (a, _) in enumerate(pairs):
+        by_partner.setdefault(a.partner_id, []).append(i)
+
+    out: list[tuple[int, int]] = []
+    for _pid, indices in by_partner.items():
+        if len(indices) < 2:
+            continue
+        texts = [
+            _heuristic_text(pairs[i][0], pairs[i][1], body_chars)[:8000]
+            for i in indices
+        ]
+        emb = _get_embeddings_for_texts(texts)
+        if not emb or len(emb) != len(indices):
+            continue
+        m = len(indices)
+        for ii in range(m):
+            for jj in range(ii + 1, m):
+                if _cosine_sim(emb[ii], emb[jj]) >= threshold:
+                    a, b = indices[ii], indices[jj]
+                    if a < b:
+                        out.append((a, b))
+                    else:
+                        out.append((b, a))
+    return out
+
+
+def _merge_candidate_pairs(*lists: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    seen: set[tuple[int, int]] = set()
+    merged: list[tuple[int, int]] = []
+    for lst in lists:
+        for i, j in lst:
+            if i > j:
+                i, j = j, i
+            key = (i, j)
+            if key not in seen:
+                seen.add(key)
+                merged.append(key)
+    return merged
 
 
 def _union_find_groups(n: int, edges: list[tuple[int, int]]) -> list[list[int]]:
@@ -158,15 +250,27 @@ def near_dedup(
     Near-duplicate: 같은 파트너 내 휴리스틱 후보 → LLM 동일 사건 판별 → 그룹별 대표 1건만 유지.
     """
     cfg = config or load_dedup_config()
-    threshold = float(cfg.get("title_jaccard_threshold", 0.15))
+    threshold = float(cfg.get("title_jaccard_threshold", 0.10))
+    body_chars = int(cfg.get("heuristic_body_chars", 1600))
+    use_embed = bool(cfg.get("use_embedding_candidates", True))
+    embed_thr = float(cfg.get("embedding_similarity_threshold", 0.78))
     use_llm = bool(cfg.get("use_llm_near_duplicate", True))
-    batch_size = int(cfg.get("llm_batch_pairs", 5))
+    batch_size = int(cfg.get("llm_batch_pairs", 3))
     debug = bool(cfg.get("debug_log", True))
 
     if len(pairs) <= 1:
         return pairs
 
-    candidate_pairs = _candidate_pairs_same_partner(pairs, threshold)
+    jac_pairs = _candidate_pairs_jaccard_same_partner(pairs, threshold, body_chars)
+    emb_pairs: list[tuple[int, int]] = []
+    if use_embed:
+        emb_pairs = _embedding_candidate_pairs_same_partner(pairs, embed_thr, body_chars)
+    candidate_pairs = _merge_candidate_pairs(jac_pairs, emb_pairs)
+    if debug and (jac_pairs or emb_pairs):
+        print(
+            f"[dedup] near 후보 쌍: Jaccard {len(jac_pairs)} + 임베딩 {len(emb_pairs)} "
+            f"→ 병합 후 {len(candidate_pairs)} (partner 내)"
+        )
     if not candidate_pairs:
         return pairs
 
@@ -178,7 +282,14 @@ def near_dedup(
         for start in range(0, len(candidate_pairs), batch_size):
             batch = candidate_pairs[start : start + batch_size]
             batch_inputs = [
-                (pairs[i][0].title, pairs[i][1], pairs[j][0].title, pairs[j][1])
+                (
+                    pairs[i][0].title or "",
+                    pairs[i][1] or "",
+                    (pairs[i][0].body or "")[:4000],
+                    pairs[j][0].title or "",
+                    pairs[j][1] or "",
+                    (pairs[j][0].body or "")[:4000],
+                )
                 for i, j in batch
             ]
             results = judge_same_event_batch(batch_inputs, llm_cfg)

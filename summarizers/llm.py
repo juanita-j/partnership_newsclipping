@@ -136,14 +136,37 @@ def _normalize(s: str) -> str:
 
 # --- 동일 사건 판별 (dedup용). 기존 provider/config 재사용 ---
 SAME_EVENT_SYSTEM = """당신은 뉴스 기사 쌍이 동일한 사건/이벤트를 다루는지 판단하는 판별기이다.
-두 기사가 같은 일(발표, 계약, 인사, 출시, 실적 등)을 다루면 동일 사건이다.
-제목/표현만 다르고 내용이 같으면 동일이다. 전혀 다른 주제면 아니다.
+두 기사가 같은 일(발표, 계약, 인수·합병, 규제 대응, 제품 출시, 인사, 사고 등)을 다루면 동일 사건이다.
+서로 다른 언론사·완전히 다른 제목·다른 각도의 보도라도, 같은 뉴스(동일 인수건, 동일 규제, 동일 당사자)를 다루면 동일이다.
+한쪽은 후속·심층 기사여도 핵심 사실(누가 무엇을 했는지)이 같으면 동일으로 본다. 날짜만 다른 같은 속보·동일 건 후속도 동일이다.
+전혀 다른 사건·다른 당사자·다른 거래면 아니다.
 답변 형식: 한 줄에 YES 또는 NO만 출력. 선택적으로 괄호 안에 신뢰도 0.0~1.0을 붙여도 된다. 예: YES (0.9) 또는 NO"""
 
 
+DEDUP_JUDGE_SUMMARY_CHARS = 700
+DEDUP_JUDGE_BODY_CHARS = 1100
+
+
+def _article_excerpt_for_same_event(
+    title: str, summary: str, body: str,
+    summary_max: int = DEDUP_JUDGE_SUMMARY_CHARS,
+    body_max: int = DEDUP_JUDGE_BODY_CHARS,
+) -> str:
+    return (
+        f"제목: {title or ''}\n"
+        f"요약: {(summary or '')[:summary_max]}\n"
+        f"본문 발췌: {(body or '')[:body_max]}"
+    )
+
+
 def judge_same_event(
-    title1: str, summary1: str, title2: str, summary2: str,
+    title1: str,
+    summary1: str,
+    title2: str,
+    summary2: str,
     config: dict | None = None,
+    body1: str = "",
+    body2: str = "",
 ) -> tuple[bool, float]:
     """
     두 기사가 동일한 사건을 다루는지 LLM으로 판별.
@@ -151,9 +174,12 @@ def judge_same_event(
     반환: (is_same_event, confidence 0.0~1.0)
     """
     cfg = config or load_config()
-    text1 = f"제목: {title1 or ''}\n요약: {(summary1 or '')[:800]}"
-    text2 = f"제목: {title2 or ''}\n요약: {(summary2 or '')[:800]}"
-    user_content = f"다음 두 뉴스 기사가 동일한 사건을 다루고 있는지 판단하라. 동일하면 YES, 아니면 NO.\n\n[기사1]\n{text1}\n\n[기사2]\n{text2}"
+    text1 = _article_excerpt_for_same_event(title1, summary1, body1)
+    text2 = _article_excerpt_for_same_event(title2, summary2, body2)
+    user_content = (
+        "다음 두 뉴스 기사가 동일한 사건을 다루고 있는지 판단하라. 동일하면 YES, 아니면 NO.\n\n"
+        f"[기사1]\n{text1}\n\n[기사2]\n{text2}"
+    )
 
     if os.environ.get("OPENAI_API_KEY"):
         try:
@@ -195,35 +221,41 @@ def judge_same_event(
 
 
 def judge_same_event_batch(
-    pairs: list[tuple[str, str, str, str]],
+    pairs: list[tuple[str, str, str, str, str, str]],
     config: dict | None = None,
 ) -> list[tuple[bool, float]]:
     """
     여러 쌍을 한 번에 판별 (호출 횟수 절감).
-    pairs: [(title1, summary1, title2, summary2), ...]
+    pairs: [(title1, summary1, body1, title2, summary2, body2), ...]
     반환: [(is_same, confidence), ...]
     """
     if not pairs:
         return []
     cfg = config or load_config()
     parts = []
-    for i, (t1, s1, t2, s2) in enumerate(pairs):
-        parts.append(f"[쌍{i+1}]\n기사1 제목: {t1 or ''}\n기사1 요약: {(s1 or '')[:400]}\n기사2 제목: {t2 or ''}\n기사2 요약: {(s2 or '')[:400]}")
-    user_content = "다음 각 쌍이 동일한 사건을 다루는지 판단하라. 동일하면 YES, 아니면 NO. 각 쌍마다 한 줄에 YES 또는 NO만 순서대로 출력.\n\n" + "\n\n".join(parts)
+    for i, (t1, s1, b1, t2, s2, b2) in enumerate(pairs):
+        block1 = _article_excerpt_for_same_event(t1, s1, b1)
+        block2 = _article_excerpt_for_same_event(t2, s2, b2)
+        parts.append(f"[쌍{i+1}]\n[기사1]\n{block1}\n\n[기사2]\n{block2}")
+    user_content = (
+        "다음 각 쌍이 동일한 사건을 다루는지 판단하라. 동일하면 YES, 아니면 NO. "
+        "각 쌍마다 한 줄에 YES 또는 NO만 순서대로 출력.\n\n"
+        + "\n\n".join(parts)
+    )
 
     if os.environ.get("OPENAI_API_KEY"):
         try:
             from openai import OpenAI
-            client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"), timeout=60.0)
+            client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"), timeout=90.0)
             cfg_openai = cfg.get("openai") or {}
             model = os.environ.get("OPENAI_SUMMARY_MODEL") or cfg_openai.get("model", "gpt-4o-mini")
             resp = client.chat.completions.create(
                 model=model,
                 messages=[
                     {"role": "system", "content": SAME_EVENT_SYSTEM},
-                    {"role": "user", "content": user_content[:12000]},
+                    {"role": "user", "content": user_content[:200000]},
                 ],
-                max_tokens=min(200, 50 * len(pairs)),
+                max_tokens=min(250, 55 * len(pairs)),
             )
             out = (resp.choices[0].message.content or "").strip()
             return _parse_yes_no_batch(out, len(pairs))
@@ -232,14 +264,14 @@ def judge_same_event_batch(
     if os.environ.get("ANTHROPIC_API_KEY"):
         try:
             from anthropic import Anthropic
-            client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"), timeout=60.0)
+            client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"), timeout=90.0)
             cfg_ant = cfg.get("anthropic") or {}
             model = os.environ.get("ANTHROPIC_SUMMARY_MODEL") or cfg_ant.get("model", "claude-3-5-haiku-20241022")
             msg = client.messages.create(
                 model=model,
-                max_tokens=min(200, 50 * len(pairs)),
+                max_tokens=min(250, 55 * len(pairs)),
                 system=SAME_EVENT_SYSTEM,
-                messages=[{"role": "user", "content": user_content[:12000]}],
+                messages=[{"role": "user", "content": user_content[:200000]}],
             )
             out = ""
             if msg.content and len(msg.content) > 0 and hasattr(msg.content[0], "text"):

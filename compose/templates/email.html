@@ -23,15 +23,15 @@
 </head>
 <body>
   <p class="section-heading" style="font-weight: bold;">I. 국내 기업</p>
-  {% for headline, partners_with_items in domestic_grouped %}
+  {% for headline, group_partner_ids, partners_with_items in domestic_grouped %}
   <p class="company-name" style="font-weight: bold;"><span class="company-num">{{ loop.index }}.</span> {{ headline }}</p>
   <ul class="articles">
     {% for partner_id, display_name, items in partners_with_items %}
     {% for main_article, summary, all_articles in items %}
     <li>
-      <span class="partner-label">[{{ display_name }}]</span>
-      <a href="{{ main_article.url }}" style="font-weight: normal;">{{ main_article.title }}</a>
-      {% if main_article.published_at %}<span class="article-date"> ({{ main_article.published_at | mmdd }})</span>{% endif %}
+      <span class="partner-label">[{{ bracket_label(main_article, summary, partner_id, headline, group_partner_ids) }}]</span>
+      <a href="{{ main_article.url }}" style="font-weight: normal;">{{ main_article.title | display_title }}</a>
+      <span class="article-date"> ({{ main_article | article_mmdd }})</span>
       <ul class="sub-bullet">
         {% for sentence in summary|sentences %}
         <li>{{ sentence }}</li>
@@ -48,15 +48,15 @@
   {% endfor %}
 
   <p class="section-heading" style="font-weight: bold;">II. 글로벌 기업</p>
-  {% for headline, partners_with_items in global_grouped %}
+  {% for headline, group_partner_ids, partners_with_items in global_grouped %}
   <p class="company-name" style="font-weight: bold;"><span class="company-num">{{ loop.index }}.</span> {{ headline }}</p>
   <ul class="articles">
     {% for partner_id, display_name, items in partners_with_items %}
     {% for main_article, summary, all_articles in items %}
     <li>
-      <span class="partner-label">[{{ display_name }}]</span>
-      <a href="{{ main_article.url }}" style="font-weight: normal;">{{ main_article.title }}</a>
-      {% if main_article.published_at %}<span class="article-date"> ({{ main_article.published_at | mmdd }})</span>{% endif %}
+      <span class="partner-label">[{{ bracket_label(main_article, summary, partner_id, headline, group_partner_ids) }}]</span>
+      <a href="{{ main_article.url }}" style="font-weight: normal;">{{ main_article.title | display_title }}</a>
+      <span class="article-date"> ({{ main_article | article_mmdd }})</span>
       <ul class="sub-bullet">
         {% for sentence in summary|sentences %}
         <li>{{ sentence }}</li>

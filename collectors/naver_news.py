@@ -3,6 +3,7 @@
 https://developers.naver.com/docs/serviceapi/search/news/news.md
 """
 from datetime import datetime, timezone, timedelta
+from email.utils import parsedate_to_datetime
 from html import unescape
 import os
 import re
@@ -104,15 +105,17 @@ def _strip_tag(s: str) -> str:
 
 
 def _parse_naver_date(s: str) -> datetime | None:
-    """RFC 2822 형식 등 파싱 시도."""
-    for fmt in (
-        "%a, %d %b %Y %H:%M:%S %z",
-        "%a, %d %b %Y %H:%M:%S %Z",
-        "%Y-%m-%dT%H:%M:%S%z",
-        "%Y-%m-%d %H:%M:%S",
-    ):
+    """네이버 API pubDate(RFC 2822 등) 파싱."""
+    s = (s or "").strip()
+    if not s:
+        return None
+    try:
+        return parsedate_to_datetime(s)
+    except (TypeError, ValueError):
+        pass
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S"):
         try:
-            return datetime.strptime(s.strip()[:30], fmt.replace(" %z", "").replace(" %Z", ""))
+            return datetime.strptime(s[:19], fmt)
         except ValueError:
             continue
     return None
