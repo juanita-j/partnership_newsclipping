@@ -51,11 +51,19 @@ def send_mail(
     to_list = to or os.environ.get("SENDER_TO", "").split(",")
     to_list = [t.strip() for t in to_list if t.strip()]
     if not to_list:
+        print("[send] 실패: 수신자(SENDER_TO) 미설정. GitHub Secrets에 SENDER_TO를 등록하세요.")
         return False
     if not host:
-        # 환경변수만으로는 발송 불가 시 False (실제 발송은 WORKS API 등으로 대체 가능)
+        print("[send] 실패: SMTP 호스트(SMTP_HOST) 미설정.")
+        return False
+    if not user:
+        print("[send] 실패: SMTP 계정(SMTP_USER) 미설정.")
+        return False
+    if not password:
+        print("[send] 실패: SMTP 비밀번호(SMTP_PASSWORD) 미설정. Gmail 앱 비밀번호를 Secrets에 등록하세요.")
         return False
 
+    print(f"[send] 발송 시도: from={from_addr}, to={to_list}, host={host}:{port}")
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = from_addr
@@ -71,6 +79,8 @@ def send_mail(
             if user and password:
                 smtp.login(user, password)
             smtp.sendmail(from_addr, to_list, msg.as_string())
+        print(f"[send] 발송 성공: {to_list}")
         return True
-    except Exception:
+    except Exception as e:
+        print(f"[send] 발송 실패 (SMTP 오류): {e}")
         return False
