@@ -41,5 +41,16 @@ Google 계정에서 [보안](https://myaccount.google.com/security) → 2단계 
 
 ## 스케줄
 
-GitHub Actions: 매주 월/수/금 15:00 KST (` .github/workflows/news-clipping.yml`).  
-직전 발송 이후 기사만 수집합니다.
+- **GitHub Actions**: 매주 **월·수·금 15:00 KST** (`.github/workflows/news-clipping.yml`의 `cron`, UTC `06:00`).
+- **수집 범위**: 직전 **메일 발송 성공 시각** 이후에 발표된 기사만 대상 (`storage/last_send.py`).  
+  - **Actions**에서는 `data/last_send_at.txt`를 **워크플로 캐시**로 넘겨 위 시각이 유지되도록 함.  
+  - 최초 실행·캐시 없음 시에는 최근 **7일**로 폴백.
+- GitHub 예약 실행은 **수 분~최대 약 1시간** 지연될 수 있음(플랫폼 특성).
+
+### 외부 작업 스케줄러를 쓰는 경우
+
+GitHub만 쓰면 **별도 스케줄러 등록은 필요 없음**.  
+다음 경우에만 직접 등록:
+
+- **Windows 작업 스케줄러 / cron / 클라우드 스케줄러** 등에서 돌리려면: 해당 환경에서 `python run_batch.py` 실행(또는 `workflow_dispatch`를 `gh workflow run` + PAT으로 트리거).
+- **정확히 15:00:00에 실행**이 필수면: GitHub cron 대신 외부 스케줄러로 `workflow_dispatch` API 호출을 권장.

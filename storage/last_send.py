@@ -1,6 +1,10 @@
 """
 직전 메일 발송 시각 저장/조회.
 배치에서 '직전 발송 이후 기사만' 수집할 때 사용.
+
+- 로컬: data/last_send_at.txt (gitignore). 발송 성공 시에만 갱신.
+- GitHub Actions: 동일 파일을 워크플로 캐시(actions/cache)로 실행 간 유지해야
+  매 실행마다 7일치로만 보지 않고 직전 발송 시각 이후만 수집할 수 있음.
 """
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
