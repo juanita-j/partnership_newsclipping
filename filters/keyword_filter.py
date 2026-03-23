@@ -192,17 +192,22 @@ _EXCLUDE_STOCK_WORD = re.compile(r"주식(?!회사)")
 # 제목·본문에서 단어 경계로만 인정할 파트너 id (현재: 메타 — '메타비아'·'메타세쿼이아' 등 제외)
 _STANDALONE_KO_META_PARTNERS = frozenset({"meta"})
 
-# 제목에만 브랜드가 없고 본문 앞에만 나오는 경우가 많아, 제목+본문 앞부분으로 매칭
-_BIGTECH_TITLE_BODY_PARTNERS = frozenset({
-    "openai",
-    "google",
-    "microsoft",
-    "anthropic",
-    "perplexity",
-    "deepseek",
-    "amazon",
-})
-_BIGTECH_BODY_PREFIX_CHARS = 1500
+# 저관련도 유통/리테일성 공지 기사(매장 오픈·브랜드 입점·편성 확대 등) 제목 패턴
+LOW_RELEVANCE_TITLE_PATTERNS = [
+    r"오프라인\s*스토어",
+    r"스토어\s*오픈",
+    r"신규\s*매장",
+    r"매장\s*오픈",
+    r"단독\s*오픈",
+    r"신규\s*브랜드",
+    r"브랜드\s*입점",
+    r"본격\s*선봬",
+    r"선보여",
+    r"신상품\s*편성",
+]
+
+# [브리프]·外 형태의 브랜드 단순 나열형 제목 판별
+LISTICLE_TITLE_HINTS = ("[브리프]", "브리프", "外")
 
 # 한글/영숫자 등 — 띄어쓰기 없이 붙으면 동일 단어로 보지 않음
 _BOUNDARY_OK = frozenset(
@@ -313,18 +318,44 @@ def load_partner_names() -> dict[str, list[str]]:
 
 
 def _title_contains_partner(article: Article, partner_names: dict[str, list[str]]) -> bool:
-    """파트너사명이 제목(또는 빅테크는 제목+본문 앞부분)에 들어가 있으면 True."""
+    """파트너사명이 제목에 들어가 있으면 True."""
     names = partner_names.get(article.partner_id) or []
     if not names:
         return True
     title = article.title or ""
     if article.partner_id in _STANDALONE_KO_META_PARTNERS:
         return _meta_title_matches_partner_names(title, names)
-    if article.partner_id in _BIGTECH_TITLE_BODY_PARTNERS:
-        body = article.body or ""
-        head = title + "\n" + body[:_BIGTECH_BODY_PREFIX_CHARS]
-        return any(name in head for name in names)
     return any(name in title for name in names)
+
+
+def _is_low_relevance_store_news(title: str, body: str) -> bool:
+    """매장 오픈/브랜드 입점 위주 공지성 기사 제외."""
+    t = _normalize_for_exclusion(title or "")
+    b = _normalize_for_exclusion(body or "")
+    head = f"{t}\n{b[:1200]}"
+    return any(re.search(p, head, re.IGNORECASE) for p in LOW_RELEVANCE_TITLE_PATTERNS)
+
+
+def _is_brand_listicle_title(title: str) -> bool:
+    """
+    [브리프]처럼 브랜드명만 길게 나열된 제목 제외.
+    예: '[브리프] A B C D ...'
+    """
+    t = _normalize_for_exclusion(title or "")
+    if not t:
+        return False
+    has_hint = any(h in t for h in LISTICLE_TITLE_HINTS)
+    if not has_hint:
+        return False
+    # 완성형 한글/영문 토큰이 다수이고, 동사형 어미·구두점이 거의 없는 경우
+    tokens = [x for x in re.split(r"\s+", t) if x]
+    if len(tokens) < 5:
+        return False
+    # '출시/체결/확대' 등 행위 서술이 없고 브랜드 나열형이면 제외
+    action_words = ("출시", "체결", "확대", "인수", "실적", "오픈", "선봬", "선보여", "발표")
+    if any(w in t for w in action_words):
+        return False
+    return True
 
 
 def _text_matches_keyword_lists(
@@ -475,6 +506,10 @@ def filter_articles(articles: list[Article], keywords: list[str] | None = None) 
         if not any(k in combined for k in keyword_set):
             continue
         if not _title_contains_partner(a, partner_names):
+            continue
+        if _is_brand_listicle_title(a.title or ""):
+            continue
+        if _is_low_relevance_store_news(a.title or "", a.body or ""):
             continue
         if _contains_exclude_keywords((a.title or "") + " " + (a.body or "")):
             continue
