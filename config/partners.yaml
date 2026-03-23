@@ -41,8 +41,6 @@ partners:
     names: [한진칼]
   - id: bgf
     names: [BGF리테일, BGF네트웍스]
-  - id: ls
-    names: [LS, LS전기]
   - id: kt
     names: [KT]
   - id: coupang
@@ -51,8 +49,6 @@ partners:
     names: [당근]
   - id: krafton
     names: [크래프톤]
-  - id: humax
-    names: [휴맥스]
   - id: nongshim
     names: [농심그룹]
   - id: hanwha
@@ -117,8 +113,6 @@ partners:
     names: [Visa, 비자]
   - id: bithumb
     names: [빗썸]
-  - id: coinone
-    names: [코인원]
   - id: kobit
     names: [코빗]
   - id: google

@@ -33,8 +33,6 @@ domestic_groups:
     partners: [hanjin]
   - name: BGF
     partners: [bgf]
-  - name: LS
-    partners: [ls]
   - name: KT
     partners: [kt]
   - name: 쿠팡
@@ -43,8 +41,6 @@ domestic_groups:
     partners: [daangn]
   - name: 크래프톤
     partners: [krafton]
-  - name: 휴맥스
-    partners: [humax]
   - name: 농심
     partners: [nongshim]
   - name: 한화
@@ -65,8 +61,6 @@ domestic_groups:
     partners: [ediya]
   - name: 빗썸
     partners: [bithumb]
-  - name: 코인원
-    partners: [coinone]
   - name: 코빗
     partners: [kobit]
   - name: 메가박스
@@ -170,12 +164,10 @@ domestic:
   - korean_air
   - hanjin
   - bgf
-  - ls
   - kt
   - coupang
   - daangn
   - krafton
-  - humax
   - nongshim
   - hanwha
   - dunamu
@@ -186,7 +178,6 @@ domestic:
   - inspire
   - ediya
   - bithumb
-  - coinone
   - kobit
   - megabox
   - sbs
