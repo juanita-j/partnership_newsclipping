@@ -8,6 +8,7 @@
 연예인 일상·SNS·행사 화보 등 연예 스타일 기사 별도 제외.
 신규 매장 오픈·브랜드파워·특정 채널·유통/전선 계열사명 위주 기사 별도 제외.
 일부 키워드는 제목·본문 어디든 / 제목에만 있을 때 각각 제외.
+회사명은 있으나 지역 병원·상호 등으로만 노출된 기사는 partner_business_relevance.yaml 로 제외.
 """
 from __future__ import annotations
 
@@ -16,6 +17,8 @@ import unicodedata
 from pathlib import Path
 
 from collectors.base import Article
+
+from filters.business_relevance import should_exclude_low_business_relevance
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 KEYWORDS_FILE = CONFIG_DIR / "keywords.yaml"
@@ -479,6 +482,8 @@ def filter_articles(articles: list[Article], keywords: list[str] | None = None) 
         if _is_bytedance_crime_court_news(a):
             continue
         if _is_entertainment_celeb_fluff(a):
+            continue
+        if should_exclude_low_business_relevance(a):
             continue
         seen_urls.add(norm_url)
         result.append(a)

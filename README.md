@@ -4,9 +4,9 @@
 
 ## 구조
 
-- **config/** – 파트너사 목록(`partners.yaml`), 키워드(`keywords.yaml`), 파트너별 기사 상한(`partner_article_caps.yaml`), 발송 설정(`sender.yaml`)
+- **config/** – 파트너사 목록(`partners.yaml`), 키워드(`keywords.yaml`), 파트너별 기사 상한(`partner_article_caps.yaml`), 사업 무관 오탐 제외(`partner_business_relevance.yaml`), 발송 설정(`sender.yaml`)
 - **collectors/** – 네이버 뉴스 API, Google News RSS 수집
-- **filters/** – 키워드 필터(주요 뉴스만), 블로그 제외, URL 중복 제거, LG·한화·KT·LS 등 파트너별 최대 N건 선별(`partner_cap.py`, 연관도 근사 + 최신 우선)
+- **filters/** – 키워드 필터(주요 뉴스만), 블로그 제외, URL 중복 제거, 지역 병원·상호 등 **브랜드만 동일한 무관 기사** 제외(`business_relevance.py`), LG·한화·KT·LS 등 파트너별 최대 N건 선별(`partner_cap.py`, 연관도 근사 + 최신 우선)
 - **summarizers/** – LLM 기반 3~7줄 요약(OpenAI/Anthropic, 설정은 `config/summarizer.yaml`), 실패 시 규칙 기반 폴백
 - **compose/** – 회사별 HTML 메일 본문 생성
 - **sender/** – SMTP 메일 발송

@@ -1,0 +1,151 @@
+# 회사명(검색어)은 들어가나, 실제 그룹/계열사 사업과 무관한 기사 제외
+# 로직: noise_title_patterns 중 하나가 제목에 매칭되고,
+#       business_anchors 중 어느 것도 제목+본문 앞부분에 없으면 제외
+#
+# 네이버 검색은 부분 일치라 지역 병원·개인 상호명에 '삼성''LG' 등이 붙은 경우가 많음
+
+samsung:
+  noise_title_patterns:
+    - '삼성365'
+    - '삼성\d+정형외과'
+    - '삼성.*정형외과'
+    - '삼성.*치과'
+    - '삼성.*한의원'
+    - '삼성.*의원'
+    - '동탄삼성'
+    - '[가-힣]{1,8}삼성\d{3}'
+  business_anchors:
+    - 삼성전자
+    - 삼성SDS
+    - Samsung
+    - 갤럭시
+    - 삼성전기
+    - 삼성디스플레이
+    - 삼성바이오
+    - 삼성물산
+    - 삼성생명
+    - 삼성화재
+    - 삼성증권
+    - 삼성에피스
+    - 삼성그룹
+    - 삼성서울병원
+    - 삼성의료원
+    - HARMAN
+    - 하만
+    - 반도체
+    - 파운드리
+
+lg:
+  noise_title_patterns:
+    - 'LG.*정형외과'
+    - 'LG.*치과'
+    - 'LG.*의원'
+    - 'LG.*한의원'
+    - '엘지.*정형외과'
+    - '엘지.*치과'
+    - '엘지.*의원'
+  business_anchors:
+    - LG전자
+    - LG유플러스
+    - LG생활건강
+    - LG CNS
+    - LG디스플레이
+    - LG에너지솔루션
+    - LG화학
+    - LG그룹
+    - OLED
+
+hyundai:
+  noise_title_patterns:
+    - '현대.*정형외과'
+    - '현대.*치과'
+    - '현대.*의원'
+    - '현대.*한의원'
+    - '현대\d+정형외과'
+  business_anchors:
+    - 현대차
+    - 현대자동차
+    - 기아
+    - 현대모비스
+    - 현대제철
+    - 현대건설
+    - HD현대
+    - 현대오토에버
+    - 현대그룹
+    - 아이오닉
+    - 코나
+    - 투싼
+
+sk:
+  noise_title_patterns:
+    - 'SK.*정형외과'
+    - 'SK.*치과'
+    - 'SK.*의원'
+    - '에스케이.*정형외과'
+  business_anchors:
+    - SK하이닉스
+    - SK텔레콤
+    - SK이노베이션
+    - SK그룹
+    - SKT
+    - 반도체
+
+kt:
+  noise_title_patterns:
+    - 'KT.*정형외과'
+    - 'KT.*치과'
+    - 'KT.*의원'
+    - '케이티.*정형외과'
+  business_anchors:
+    - KT그룹
+    - olleh
+    - 기가인터넷
+    - KT SAT
+
+hanwha:
+  noise_title_patterns:
+    - '한화.*정형외과'
+    - '한화.*치과'
+    - '한화.*의원'
+  business_anchors:
+    - 한화에어로스페이스
+    - 한화생명
+    - 한화솔루션
+    - 한화그룹
+    - 한화시스템
+
+ls:
+  noise_title_patterns:
+    - 'LS.*정형외과'
+    - 'LS.*치과'
+    - 'LS.*의원'
+    - '엘에스.*정형외과'
+  business_anchors:
+    - LS전기
+    - LS ELECTRIC
+    - LS그룹
+    - LS일렉트릭
+
+lotte:
+  noise_title_patterns:
+    - '롯데.*정형외과'
+    - '롯데.*치과'
+    - '롯데.*의원'
+  business_anchors:
+    - 롯데쇼핑
+    - 롯데마트
+    - 롯데그룹
+    - 롯데월드
+    - 롯데칠성
+
+gs:
+  noise_title_patterns:
+    - 'GS.*정형외과'
+    - 'GS.*치과'
+    - 'GS.*의원'
+    - '지에스.*정형외과'
+  business_anchors:
+    - GS리테일
+    - GS칼텍스
+    - GS건설
+    - GS그룹
