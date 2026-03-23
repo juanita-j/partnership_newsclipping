@@ -127,11 +127,13 @@ partners:
   - id: perplexity
     names: [Perplexity, 퍼플렉시티]
   - id: anthropic
-    names: [Claude, Anthropic, 클로드, 앤스로픽]
+    names: [Claude, Anthropic, 클로드, 앤스로픽, 앤트로픽]
   - id: deepseek
     names: [DeepSeek, Deepseek, 딥시크]
   - id: apple
     names: [Apple, 애플]
+  - id: nvidia
+    names: [NVIDIA, 엔비디아]
   - id: tesla
     names: [Tesla, 테슬라]
   - id: alibaba

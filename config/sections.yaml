@@ -60,77 +60,55 @@ domestic_groups:
       - sbs
       - hybe
 
+# 글로벌 그룹 순서: 구글→메타→넷플릭스→스포티파이→오픈AI→(퍼플렉시티+앤스로픽)→MS→엔비디아→애플→아마존→기타
 global_groups:
-  - name: Meta
-    partners: [meta]
-  - name: Airbnb
-    partners: [airbnb]
-  - name: 비바리퍼블리카
-    partners: [viva]
-  - name: Bytedance
-    partners: [bytedance]
-  - name: Uber
-    partners: [uber]
-  - name: Xsolla
-    partners: [xsolla]
-  - name: Adobe
-    partners: [adobe]
-  - name: Figma
-    partners: [figma]
-  - name: Appning
-    partners: [appning]
-  - name: Netflix
-    partners: [netflix]
-  - name: 넥슨
-    partners: [nexon]
-  - name: Spotify
-    partners: [spotify]
-  - name: Disney
-    partners: [disney]
-  - name: LVMH
-    partners: [lvmh]
-  - name: CHANEL
-    partners: [chanel]
-  - name: 로레알
-    partners: [loreal]
-  - name: Huawei
-    partners: [huawei]
-  - name: 노보노디스크
-    partners: [novo_nordisk]
-  - name: Harman
-    partners: [harman]
-  - name: Visa
-    partners: [visa]
-  - name: Google
+  - name: 구글·Google
     partners: [google]
-  - name: Microsoft
-    partners: [microsoft]
-  - name: Amazon
-    partners: [amazon]
-  - name: OpenAI
+  - name: 메타·Meta
+    partners: [meta]
+  - name: 넷플릭스·Netflix
+    partners: [netflix]
+  - name: 스포티파이·Spotify
+    partners: [spotify]
+  - name: 오픈AI·OpenAI
     partners: [openai]
-  - name: Perplexity
-    partners: [perplexity]
-  - name: Anthropic
-    partners: [anthropic]
-  - name: Deepseek
-    partners: [deepseek]
-  - name: Apple
+  - name: 퍼플렉시티·Perplexity·앤스로픽
+    partners: [perplexity, anthropic]
+  - name: 마이크로소프트·Microsoft
+    partners: [microsoft]
+  - name: 엔비디아·NVIDIA
+    partners: [nvidia]
+  - name: 애플·Apple
     partners: [apple]
-  - name: Tesla
-    partners: [tesla]
-  - name: Alibaba
-    partners: [alibaba]
-  - name: Walmart
-    partners: [walmart]
-  - name: Oracle
-    partners: [oracle]
-  - name: Palantir
-    partners: [palantir]
-  - name: Tencent
-    partners: [tencent]
-  - name: AMD
-    partners: [amd]
+  - name: 아마존·Amazon·AWS
+    partners: [amazon]
+  - name: 기타 회사
+    partners:
+      - airbnb
+      - viva
+      - bytedance
+      - uber
+      - xsolla
+      - adobe
+      - figma
+      - appning
+      - nexon
+      - disney
+      - lvmh
+      - chanel
+      - loreal
+      - huawei
+      - novo_nordisk
+      - harman
+      - visa
+      - deepseek
+      - tesla
+      - alibaba
+      - walmart
+      - oracle
+      - palantir
+      - tencent
+      - amd
 
 # 기존 flat 목록 (그룹 미사용 시 fallback) — domestic_groups 순서와 동일하게
 domestic:
@@ -174,7 +152,17 @@ domestic:
   - hybe
 
 global:
+  - google
   - meta
+  - netflix
+  - spotify
+  - openai
+  - perplexity
+  - anthropic
+  - microsoft
+  - nvidia
+  - apple
+  - amazon
   - airbnb
   - viva
   - bytedance
@@ -183,9 +171,7 @@ global:
   - adobe
   - figma
   - appning
-  - netflix
   - nexon
-  - spotify
   - disney
   - lvmh
   - chanel
@@ -194,14 +180,7 @@ global:
   - novo_nordisk
   - harman
   - visa
-  - google
-  - microsoft
-  - amazon
-  - openai
-  - perplexity
-  - anthropic
   - deepseek
-  - apple
   - tesla
   - alibaba
   - walmart
