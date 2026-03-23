@@ -1,5 +1,14 @@
 name: Partner News Clipping
 on:
+  # main에 푸시 시 최신 커밋으로 바로 실행 (필터·설정 반영 확인용). README만 수정한 푸시는 제외.
+  push:
+    branches:
+      - main
+    paths:
+      - "**.py"
+      - "config/**"
+      - ".github/workflows/**"
+      - "requirements.txt"
   schedule:
     # 매주 월·수·금 15:00 KST (= UTC 06:00). GitHub cron은 UTC 기준, 1=월 3=수 5=금
     - cron: '0 6 * * 1,3,5'
@@ -10,9 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
+      # 이벤트가 가리키는 커밋(SHA)을 그대로 체크아웃 (푸시/수동 실행 모두 최신 코드 보장)
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.sha }}
 
       - name: data 디렉터리 준비
         run: mkdir -p data
@@ -37,6 +47,10 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: 필터 모듈 검증 (제외 키워드가 CI 코드에 포함되는지)
+        run: |
+          python -c "from filters.keyword_filter import EXCLUDE_KEYWORDS; must=['신규 매장 오픈','브랜드파워','CJ온스타일','CJ올리브네트웍스','LS네트웍스','LS전선','금호현대']; missing=[x for x in must if x not in EXCLUDE_KEYWORDS]; assert not missing, 'Missing: '+str(missing); print('OK exclude count=', len(EXCLUDE_KEYWORDS))"
 
       - name: Run batch
         env:

@@ -41,6 +41,8 @@ Google 계정에서 [보안](https://myaccount.google.com/security) → 2단계 
 
 ## 스케줄
 
+- **`main` 브랜치 푸시**: `**.py`, `config/**`, `.github/workflows/**`, `requirements.txt`가 바뀐 커밋을 푸시하면 **워크플로가 자동 실행**되어(수집·필터·발송) **방금 푸시한 코드가 그대로** 사용됩니다.  
+  - 예전에는 **푸시만으로는 Actions가 돌지 않아**, 수동 **Run workflow** 또는 예약 시간까지 기다려야 변경이 반영되지 않은 것처럼 보일 수 있었습니다.
 - **GitHub Actions**: 매주 **월·수·금 15:00 KST** (`.github/workflows/news-clipping.yml`의 `cron`, UTC `06:00`).
 - **수집 범위**: 직전 **메일 발송 성공 시각** 이후에 발표된 기사만 대상 (`storage/last_send.py`).  
   - **Actions**에서는 `data/last_send_at.txt`를 **워크플로 캐시**로 넘겨 위 시각이 유지되도록 함.  

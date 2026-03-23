@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from pathlib import Path
 
 from collectors.base import Article
@@ -120,6 +121,23 @@ EXCLUDE_KEYWORDS = [
     "LS전선",
     "금호현대",
 ]
+
+# 띄어쓰기·표기 변형 (뉴스 본문에 자주 나오는 형태 — 위 키와 동일하게 제외)
+EXCLUDE_KEYWORD_VARIANTS = [
+    "CJ 온스타일",
+    "cj온스타일",
+    "CJ 올리브네트웍스",
+    "LS 네트웍스",
+    "LS 전선",
+    "브랜드 파워",
+]
+
+
+def _normalize_for_exclusion(text: str) -> str:
+    """NFKC·제로폭·NBSP 제거 후 비교 (동일 문구인데 유니코드만 다른 경우 대응)."""
+    t = unicodedata.normalize("NFKC", text or "")
+    return t.replace("\u00a0", " ").replace("\u200b", "").replace("\ufeff", "")
+
 
 # 제목+본문에서 제외: '주가'(EXCLUDE_KEYWORDS), '주식'(단 '주식회사' 법인표기는 통과), '주주총회'
 _EXCLUDE_STOCK_WORD = re.compile(r"주식(?!회사)")
@@ -264,9 +282,15 @@ def _title_contains_partner(article: Article, partner_names: dict[str, list[str]
 
 def _contains_exclude_keywords(text: str) -> bool:
     """제외 키워드(코스피/코스닥/소액주주/특집기사 등)가 포함되면 True."""
-    t = text or ""
-    for kw in EXCLUDE_KEYWORDS:
+    t_raw = text or ""
+    t = _normalize_for_exclusion(t_raw)
+    for kw in EXCLUDE_KEYWORDS + EXCLUDE_KEYWORD_VARIANTS:
+        if kw in t_raw:
+            return True
         if kw in t:
+            return True
+        kn = _normalize_for_exclusion(kw)
+        if kn in t:
             return True
     if _EXCLUDE_STOCK_WORD.search(t):
         return True
