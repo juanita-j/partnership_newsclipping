@@ -2,6 +2,9 @@
 회사별로 묶어서 HTML 메일 본문 생성.
 제목 + 링크 + 3~7줄 요약.
 """
+from __future__ import annotations
+
+import re
 from pathlib import Path
 from datetime import datetime
 
@@ -60,6 +63,66 @@ def load_partner_display_names() -> dict[str, str]:
     return {p["id"]: (p.get("names") or [p["id"]])[0] for p in partners if p.get("id")}
 
 
+def load_partner_names_map() -> dict[str, list[str]]:
+    """partner_id -> names 전체 목록 (브래킷 라벨·영문 머릿말용)."""
+    try:
+        import yaml
+    except ImportError:
+        return {}
+    partners_file = CONFIG_DIR / "partners.yaml"
+    if not partners_file.exists():
+        return {}
+    with open(partners_file, encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+    partners = data.get("partners") or []
+    return {
+        p["id"]: list(p.get("names") or [p["id"]])
+        for p in partners
+        if p.get("id")
+    }
+
+
+def headline_english_only(s: str) -> str:
+    """
+    그룹 머릿말에서 한글·영문이 함께 있을 때 영문 세그먼트만 남김.
+    예: 구글·Google -> Google, 아마존·Amazon·AWS -> Amazon AWS
+    영문이 없으면 원문 유지 (삼성, 롯데 등).
+    """
+    if not s or not isinstance(s, str):
+        return s or ""
+    s = s.strip()
+    parts = re.split(r"[·,，]", s)
+    eng: list[str] = []
+    for p in parts:
+        p = p.strip()
+        if not p:
+            continue
+        if re.fullmatch(r"[A-Za-z0-9.&\s\-']+", p):
+            eng.append(p)
+    return " ".join(eng) if eng else s
+
+
+def partner_english_headline(pid: str, names_map: dict[str, list[str]]) -> str:
+    """
+    파트너별 소제목(영문 브랜드 우선). names에 라틴 문자만 있는 항목을 우선 사용.
+    없으면 partner_id를 타이틀 케이스로 (nexon -> Nexon).
+    """
+    names = names_map.get(pid) or [pid]
+    for n in names:
+        n = (n or "").strip()
+        if not n:
+            continue
+        if re.fullmatch(r"[A-Za-z0-9.&\s\-']+", n):
+            return n
+    for n in names:
+        n = (n or "").strip()
+        if not n:
+            continue
+        if re.search(r"[A-Za-z]", n) and not re.search(r"[가-힣]", n):
+            return n
+    return pid.replace("_", " ").title()
+
+
 def build_html(
     grouped: dict[str, list[tuple[Article, str, list]]],
     subject_date: str | None = None,
@@ -77,33 +140,36 @@ def build_html(
     elif reference_datetime.tzinfo is None:
         reference_datetime = reference_datetime.replace(tzinfo=KST)
     display_names = load_partner_display_names()
+    names_map = load_partner_names_map()
     domestic_groups, global_groups = load_section_groups()
     if not domestic_groups:
         domestic_ids, _ = load_sections()
         domestic_grouped = [
             (
-                display_names.get(pid) or pid,
+                partner_english_headline(pid, names_map),
                 [pid],
                 [(pid, display_names.get(pid) or pid, grouped[pid])],
+                partner_english_headline(pid, names_map),
             )
             for pid in domestic_ids
             if pid in grouped and grouped[pid]
         ]
     else:
-        domestic_grouped = _build_grouped_by_headline(domestic_groups, grouped, display_names)
+        domestic_grouped = _build_grouped_by_headline(domestic_groups, grouped, display_names, names_map)
     if not global_groups:
         _, global_ids = load_sections()
         global_grouped = [
             (
-                display_names.get(pid) or pid,
+                partner_english_headline(pid, names_map),
                 [pid],
                 [(pid, display_names.get(pid) or pid, grouped[pid])],
+                partner_english_headline(pid, names_map),
             )
             for pid in global_ids
             if pid in grouped and grouped[pid]
         ]
     else:
-        global_grouped = _build_grouped_by_headline(global_groups, grouped, display_names)
+        global_grouped = _build_grouped_by_headline(global_groups, grouped, display_names, names_map)
     template_file = TEMPLATES_DIR / "email.html"
     if template_file.exists():
         try:
@@ -114,9 +180,9 @@ def build_html(
             env.filters["sentences"] = _summary_to_sentences
             env.filters["display_title"] = clean_display_title
 
-            def bracket_label(main_article, summary, partner_id, group_headline, group_partner_ids):
+            def bracket_label(main_article, summary, partner_id, bracket_headline, group_partner_ids):
                 return resolve_bracket_label(
-                    group_headline,
+                    bracket_headline,
                     partner_id,
                     main_article,
                     summary or "",
@@ -150,14 +216,15 @@ def _default_html(
     display_names: dict[str, str],
     reference_datetime: datetime,
 ) -> str:
-    """Jinja2 없을 때 기본 HTML. domestic/global_grouped = [(headline, partner_ids, [(partner_id, display_name, items), ...]), ...]."""
+    """Jinja2 없을 때 기본 HTML. domestic/global_grouped = [(headline, partner_ids, [...], bracket_headline), ...]."""
     parts = ["<!DOCTYPE html><html><head><meta charset='utf-8'></head><body>"]
     section_style = "font-size: 1.125rem; font-weight: bold; margin-top: 24px; margin-bottom: 12px;"
     for section_label, group_list in [("I. 국내 기업", domestic_grouped), ("II. 글로벌 기업", global_grouped)]:
         if not group_list:
             continue
         parts.append(f"<p class='section-heading' style='{section_style} font-weight: bold;'>{_escape(section_label)}</p>")
-        for idx, (headline, group_pids, partners_with_items) in enumerate(group_list, 1):
+        for idx, row in enumerate(group_list, 1):
+            headline, group_pids, partners_with_items, bracket_headline = row
             parts.append(
                 f"<p class='company-name' style='font-weight: bold;'>"
                 f"<span class='company-num' style='display: inline-block; width: 2.2em; text-align: right;'>{idx}.</span> {_escape(headline)}</p>"
@@ -166,7 +233,7 @@ def _default_html(
             for partner_id, display_name, items in partners_with_items:
                 for main_article, summary, all_articles in items:
                     bracket = resolve_bracket_label(
-                        headline, partner_id, main_article, summary or "", display_names, list(group_pids or [])
+                        bracket_headline, partner_id, main_article, summary or "", display_names, list(group_pids or [])
                     )
                     date_str = _format_article_date(main_article, reference_datetime)
                     summary_sentences = _summary_to_sentences(summary or "")
@@ -192,23 +259,33 @@ def _build_grouped_by_headline(
     groups: list[dict],
     grouped: dict,
     display_names: dict[str, str],
+    names_map: dict[str, list[str]],
 ) -> list[tuple]:
     """
     그룹 설정에 따라 머릿말별로 묶음.
-    반환: [(group_name, partner_ids, [(partner_id, display_name, items), ...]), ...]
+    반환: [(display_headline, partner_ids, [(partner_id, display_name, items), ...], bracket_headline), ...]
+    - display_headline: 화면에 보이는 번호 소제목 (한글·영문 혼합이면 영문만, 기타 회사는 파트너별 영문 브랜드)
+    - bracket_headline: group_subsidiary_labels 매칭용 (일반 그룹은 설정의 원문 name, 기타 분리 시 파트너별 영문)
     기사가 하나라도 있는 그룹만 포함.
     """
-    result = []
+    result: list[tuple] = []
     for g in groups:
-        name = g.get("name") or ""
+        name = (g.get("name") or "").strip()
         pids = g.get("partners") or []
         partners_with_items = [
             (pid, display_names.get(pid) or pid, grouped[pid])
             for pid in pids
             if pid in grouped and grouped[pid]
         ]
-        if partners_with_items:
-            result.append((name, list(pids), partners_with_items))
+        if not partners_with_items:
+            continue
+        if name == "기타 회사":
+            for pid, dn, items in partners_with_items:
+                ph = partner_english_headline(pid, names_map)
+                result.append((ph, [pid], [(pid, dn, items)], ph))
+        else:
+            display = headline_english_only(name)
+            result.append((display, list(pids), partners_with_items, name))
     return result
 
 

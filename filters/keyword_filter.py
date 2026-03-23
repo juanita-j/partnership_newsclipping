@@ -5,10 +5,14 @@
 (신제품·전략·재무·사업 리스크 중심이 아닌) 관련도 낮은 기사·채용/공채/신입 뉴스 제외.
 에어비앤비(airbnb)는 숙소 화제·이색 흥미 위주 기사 별도 제외.
 바이트댄스(틱톡)는 기업 전략과 무관한 범죄·재판 보도 별도 제외.
+오픈AI(OpenAI/ChatGPT) 파트너: 제품·경영·규제 등 **기업 보도**만 유지. 대학·기관의 도구 도입·인터뷰, 청년 고용 등 **거시 트렌드**는 제외.
 연예인 일상·SNS·행사 화보 등 연예 스타일 기사 별도 제외.
 신규 매장 오픈·브랜드파워·특정 채널·유통/전선 계열사명 위주 기사 별도 제외.
+스포츠 구단·리그·경기 위주 기사(수원삼성 등 클럽명, K리그·EPL 등)는 제목·본문에 있으면 제외.
 일부 키워드는 제목·본문 어디든 / 제목에만 있을 때 각각 제외.
 회사명은 있으나 지역 병원·상호 등으로만 노출된 기사는 partner_business_relevance.yaml 로 제외.
+기념·창립기념 등 기념 행사 위주 보도는 제목·본문에 '기념'이 있으면 제외.
+제목에 'NAS계 애플' 등 ○○계 (브랜드) 비유 표현만 있고 주제가 다른 기업인 경우 해당 브랜드 파트너로는 제외.
 """
 from __future__ import annotations
 
@@ -142,6 +146,8 @@ EXCLUDE_KEYWORDS = [
     "신규 매장",
     "한화오션",
     "돈버는 퀴즈",
+    # 기념·창립기념 등 행사 보도 (제목·본문)
+    "기념",
 ]
 
 # 제목에만 포함돼도 제외 (본문만 해당이면 통과)
@@ -165,6 +171,36 @@ EXCLUDE_TITLE_KEYWORD_VARIANTS = [
 ]
 
 # 띄어쓰기·표기 변형 (뉴스 본문에 자주 나오는 형태 — 위 키와 동일하게 제외)
+# 스포츠 구단·프로리그·국제축구 (기업 사업 뉴스와 무관한 경기·선수 보도)
+SPORTS_TEAM_KEYWORDS = [
+    "스포츠팀",
+    "K리그",
+    "K 리그",
+    "EPL",
+    "프리미어리그",
+    "프리미어 리그",
+    "프로축구",
+    "프로야구",
+    "프로배구",
+    "KBO",
+    "NPB",
+    "메이저리그",
+    "NBA",
+    "UEFA",
+    "챔피언스리그",
+    "월드컵경기장",
+    "월드컵 경기장",
+    "V-리그",
+    "KOVO",
+    "OGFC",
+]
+
+# 수원삼성 축구단 등 (삼성전자·계열사 사업 기사와 구분)
+_SUWON_SAMSUNG_FC = re.compile(
+    r"수원\s*삼성(?!전자|SDS|물산|생명|화재|SDI|바이오|디스플레이|반도체|증권|웰스토리)",
+    re.IGNORECASE,
+)
+
 EXCLUDE_KEYWORD_VARIANTS = [
     "CJ 온스타일",
     "cj온스타일",
@@ -416,6 +452,116 @@ def _is_airbnb_trivial_sensational(article: Article) -> bool:
     return False
 
 
+def _openai_has_corporate_strategy_signals(text: str) -> bool:
+    """
+    OpenAI(기업) 제품·경영·규제·파트너십 등 보도로 볼 만한 신호.
+    이 중 하나라도 있으면 '단순 도입·트렌드' 제외 로직을 적용하지 않음.
+    """
+    t = text or ""
+    if re.search(r"(샘\s*알트먼|Sam\s+Altman|\bAltman\b)", t, re.I):
+        return True
+    if re.search(r"\b(GPT-5|GPT-4\.5|GPT-4o|GPT-4\.1|o3-mini|o4-mini|\bo3\b|\bo4\b)", t, re.I):
+        return True
+    if re.search(r"(소라|Sora).{0,40}(OpenAI|오픈AI)|(OpenAI|오픈AI).{0,40}(소라|Sora)", t, re.I):
+        return True
+    if re.search(
+        r"(오픈AI|OpenAI).{0,120}(발표|출시|공개|투자|인수|합병|규제|소송|반독점|실적|매출|영업|IPO|상장|파트너십|협력|계약|탑재|\bAPI\b|Enterprise|엔터프라이즈)",
+        t,
+        re.I,
+    ):
+        return True
+    if re.search(
+        r"(발표|출시|공개).{0,60}(오픈AI|OpenAI|ChatGPT|GPT-5|GPT-4)",
+        t,
+        re.I,
+    ):
+        return True
+    if re.search(
+        r"(Microsoft|마이크로소프트|MS).{0,100}(OpenAI|오픈AI)|(OpenAI|오픈AI).{0,100}(Microsoft|마이크로소프트|MS\b)",
+        t,
+        re.I,
+    ):
+        return True
+    return False
+
+
+def _openai_education_or_institution_tool_noise(text: str, title: str) -> bool:
+    """대학·교육기관이 ChatGPT 등을 '도입·구독'하는 보도 — 기업 전략 뉴스 아님."""
+    if _openai_has_corporate_strategy_signals(text):
+        return False
+    tit = title or ""
+    # 시리즈 대학 인터뷰·교육 혁신 특집 (제목 또는 본문 머리)
+    if (
+        "[첨단" in tit
+        or "[첨단" in text
+        or "대학들]" in tit
+        or "인재양성에 주력하는 대학" in text
+    ):
+        return True
+    if "총장" in text and "인터뷰" in text:
+        if any(x in text for x in ("대학교", "여대", "대학 ", "캠퍼스", "교육혁신", "커리큘럼", "학과")):
+            return True
+    if "AI 융합교육" in text or "AI융합교육" in text:
+        if any(x in text for x in ("캠퍼스", "학과", "전공", "대학")):
+            return True
+    if re.search(r"ChatGPT|챗GPT", text) and any(x in text for x in ("구독", "유료 버전", "크레딧")):
+        if any(x in text for x in ("학생", "대학", "교육", "캠퍼스", "수업", "강의")):
+            return True
+    if "AI 리터러시" in text or "덕성 AI" in text:
+        if "대학" in text or "캠퍼스" in text or "총장" in text:
+            return True
+    return False
+
+
+def _openai_macro_labor_or_trend_noise(text: str, title: str) -> bool:
+    """청년 실업·고용 구조 등 거시 트렌드 기사에서 ChatGPT만 인용하는 경우."""
+    if _openai_has_corporate_strategy_signals(text):
+        return False
+    tit = (title or "").lower()
+    combined = ((title or "") + "\n" + (text or "")).lower()
+
+    if not ("chatgpt" in combined or "openai" in combined or "챗gpt" in combined or "오픈ai" in combined):
+        return False
+
+    # 영문: 청년 취업 일반론 (사용자 예시 2 유형)
+    if re.search(
+        r"young people|land jobs|job search|unemployment|entry-level|junior-level|job seeker",
+        tit,
+        re.I,
+    ):
+        return True
+
+    if "bank of korea" in combined or "한국은행" in (text or ""):
+        if re.search(r"unemploy|실업|고용|청년|일자리|position|job|hiring|recruit|감소|사라", combined, re.I):
+            return True
+
+    if re.search(r"ministry of.*stat|통계청|고용.*구조|hiring slowdown|labor market", combined, re.I):
+        if re.search(r"disappear|사라진|줄어든|감소한|청년.*일자리", combined, re.I):
+            return True
+
+    return False
+
+
+def _is_openai_non_corporate_tool_or_trend_news(article: Article) -> bool:
+    """
+    OpenAI 파트너 기사 중, 기업 전략·제품이 아니라
+    (1) 타 기관의 ChatGPT 도입·교육용 보도 (2) 거시 고용·트렌드 보도 는 제외.
+    """
+    if article.partner_id != "openai":
+        return False
+    title = article.title or ""
+    body = article.body or ""
+    text = _normalize_for_exclusion(f"{title}\n{body}")
+
+    if _openai_has_corporate_strategy_signals(text):
+        return False
+    if _openai_education_or_institution_tool_noise(text, title):
+        return True
+    if _openai_macro_labor_or_trend_noise(text, title):
+        return True
+    return False
+
+
 def _is_bytedance_crime_court_news(article: Article) -> bool:
     """
     틱톡/바이트댄스 키워드가 있어도, 살인·유기·재판 등 범죄 사건 보도는 기업 뉴스가 아님.
@@ -437,6 +583,74 @@ def _is_bytedance_crime_court_news(article: Article) -> bool:
         return True
     if "징역" in t and ("선고" in t or "구형" in t or "집행유예" in t):
         return True
+    return False
+
+
+def _is_sports_team_news(article: Article) -> bool:
+    """
+    스포츠 구단·리그·경기 위주 기사 제외 (제목·본문).
+    예: 수원삼성 레전드 vs OGFC, K리그·EPL 맞대결 등.
+    """
+    title = article.title or ""
+    body = article.body or ""
+    text = _normalize_for_exclusion(f"{title}\n{body}")
+    if _text_matches_keyword_lists(text, SPORTS_TEAM_KEYWORDS, []):
+        return True
+    if _SUWON_SAMSUNG_FC.search(text):
+        return True
+    for phrase in ("삼성 라이온즈", "삼성라이온즈", "LG 트윈스", "LG트윈스"):
+        if phrase in text:
+            return True
+    return False
+
+
+# 제목 'NAS계 애플'·'클라우드계 구글' 등 인용부호 안 비유 (실제 주제는 뒤따르는 기업)
+# 유니코드 따옴표 \u2018\u2019\u201c\u201d 포함
+_QUOT_OPEN = r"[''「\"\[\(\u2018\u2019\u201c\u201d]"
+_QUOT_CLOSE = r"[''」\"\]\)\u2018\u2019\u201c\u201d]"
+_METAPHOR_QUOTED_CATEGORY_BRAND = {
+    "apple": re.compile(
+        rf"(?:{_QUOT_OPEN})[^\]\)''」\"\u2018\u2019\u201c\u201d]{{0,100}}\S+계\s*(?:애플|Apple)[^\]\)''」\"\u2018\u2019\u201c\u201d]{{0,40}}(?:{_QUOT_CLOSE})",
+        re.IGNORECASE,
+    ),
+    "google": re.compile(
+        rf"(?:{_QUOT_OPEN})[^\]\)''」\"\u2018\u2019\u201c\u201d]{{0,100}}\S+계\s*(?:구글|Google)[^\]\)''」\"\u2018\u2019\u201c\u201d]{{0,40}}(?:{_QUOT_CLOSE})",
+        re.IGNORECASE,
+    ),
+    "meta": re.compile(
+        rf"(?:{_QUOT_OPEN})[^\]\)''」\"\u2018\u2019\u201c\u201d]{{0,100}}\S+계\s*(?:메타|Meta)[^\]\)''」\"\u2018\u2019\u201c\u201d]{{0,40}}(?:{_QUOT_CLOSE})",
+        re.IGNORECASE,
+    ),
+}
+# 인용 없이: NAS계 애플, 시놀로지 … (비유 뒤 실제 주제가 다른 브랜드)
+_METAPHOR_UNQUOTED_APPLE_THEN_OTHER = re.compile(
+    r"\S+계\s*(?:애플|Apple)\s*[,，]\s*[^,]{0,35}(시놀로지|Synology|네이버|카카오|라인|LG|SK|현대|삼성전자)",
+    re.IGNORECASE,
+)
+# 'NAS계 애플' 시놀로지 — 쉼표 없이 비유 직후 다른 회사명이 주제
+_METAPHOR_APPLE_THEN_SYNOLOGY = re.compile(
+    r"\S+계\s*(?:애플|Apple)[\s''」\u2018\u2019]{0,4}\s*(?:시놀로지|Synology)",
+    re.IGNORECASE,
+)
+
+
+def _is_metaphor_category_brand_in_title(article: Article) -> bool:
+    """
+    제목에 기업명이 나와도 '○○계 애플'처럼 비유로만 쓰인 경우 제외.
+    예: 'NAS계 애플' 시놀로지 → 애플 기사가 아니라 시놀로지 주제.
+    """
+    title = article.title or ""
+    if not title.strip():
+        return False
+    pid = article.partner_id or ""
+    pat = _METAPHOR_QUOTED_CATEGORY_BRAND.get(pid)
+    if pat and pat.search(title):
+        return True
+    if pid == "apple":
+        if _METAPHOR_UNQUOTED_APPLE_THEN_OTHER.search(title):
+            return True
+        if _METAPHOR_APPLE_THEN_SYNOLOGY.search(title):
+            return True
     return False
 
 
@@ -515,9 +729,15 @@ def filter_articles(articles: list[Article], keywords: list[str] | None = None) 
             continue
         if _contains_title_exclude_keywords(a.title or ""):
             continue
+        if _is_metaphor_category_brand_in_title(a):
+            continue
         if _is_airbnb_trivial_sensational(a):
             continue
         if _is_bytedance_crime_court_news(a):
+            continue
+        if _is_openai_non_corporate_tool_or_trend_news(a):
+            continue
+        if _is_sports_team_news(a):
             continue
         if _is_entertainment_celeb_fluff(a):
             continue

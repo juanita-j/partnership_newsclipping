@@ -1,14 +1,6 @@
 name: Partner News Clipping
 on:
-  # main에 푸시 시 최신 커밋으로 바로 실행 (필터·설정 반영 확인용). README만 수정한 푸시는 제외.
-  push:
-    branches:
-      - main
-    paths:
-      - "**.py"
-      - "config/**"
-      - ".github/workflows/**"
-      - "requirements.txt"
+  # 코드·설정 수정 시 자동 발송하지 않음. 수동 실행(workflow_dispatch) 또는 아래 스케줄로만 실행.
   schedule:
     # 매주 월·수·금 15:00 KST (= UTC 06:00). GitHub cron은 UTC 기준, 1=월 3=수 5=금
     - cron: '0 6 * * 1,3,5'
