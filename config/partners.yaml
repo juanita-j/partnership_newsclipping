@@ -10,7 +10,7 @@ partners:
   - id: sk_hynix
     names: [SK하이닉스]
   - id: sk
-    names: [SK, SKT, SK브로드밴드, SK스퀘어, SK플래닛]
+    names: [SK, SKT, SK텔레콤, SK브로드밴드, SK스퀘어, SK플래닛]
   - id: tmap_mobility
     names: [티맵모빌리티]
   - id: hyundai
@@ -32,9 +32,9 @@ partners:
   - id: lotte
     names: [롯데, 롯데쇼핑, 롯데렌탈]
   - id: kakao
-    names: [카카오, 카카오모빌리티, 카카오페이, 카카오엔터]
+    names: [카카오, 카카오페이, 카카오엔터테인먼트, 카카오엔터프라이즈, 카카오엔터, 카카오모빌리티]
   - id: cj
-    names: [CJ, CJ ENM, 올리브영, 대한통운, CGV]
+    names: [CJ, CJ ENM, 티빙, 올리브영, 대한통운, CGV]
   - id: korean_air
     names: [대한항공]
   - id: hanjin

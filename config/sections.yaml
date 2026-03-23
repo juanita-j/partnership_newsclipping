@@ -1,74 +1,64 @@
 # 메일 본문 파트 구분: I. 국내 기업 / II. 글로벌 기업
 # 머릿말(그룹)으로 묶어서 표시: 같은 그룹 기사는 하나의 번호 아래에 [회사표시명] (기사) 형태로 나열
+# 국내 그룹 순서: 삼성→현대→롯데→신세계→GS→CJ→SK→한화→LG→카카오→기타 회사
 
-# 그룹 정의 (머릿말 이름 -> 해당 partner_ids). 없으면 기존처럼 partner_id 단위로 표시
+# 그룹 정의 (머릿말 이름 -> 해당 partner_ids). partners 순서 = 메일 내 하위 나열 순서
 domestic_groups:
+  # 1. 삼성전자 → 삼성SDS → 기타 계열사(라벨·매칭은 group_subsidiary_labels)
   - name: 삼성
     partners: [samsung, samsung_sds]
-  - name: 신라
-    partners: [shilla_dutyfree, hotel_shilla]
-  - name: SK
-    partners: [sk_hynix, sk, tmap_mobility]
+  # 2. 현대차·기아 등 → HD현대·건설 등 기타
   - name: 현대
     partners: [hyundai, hd_hyundai]
-  - name: LG
-    partners: [lg]
-  - name: GS
-    partners: [gs]
-  - name: 신세계
-    partners: [shinsegae]
-  - name: 스타벅스
-    partners: [starbucks]
-  - name: 이베이
-    partners: [ebay]
+  # 3. 롯데쇼핑 → 기타
   - name: 롯데
     partners: [lotte]
-  - name: 카카오
-    partners: [kakao]
+  # 4. 이마트·SSG → 스타벅스 → 이베이 등 (스타벅스·이베이는 신세계 하위)
+  - name: 신세계
+    partners: [shinsegae, starbucks, ebay]
+  # 5. GS → GS리테일·GS건설 등
+  - name: GS
+    partners: [gs]
+  # 6. 티빙·올리브영·CGV 등
   - name: CJ
     partners: [cj]
-  - name: 대한항공
-    partners: [korean_air]
-  - name: 한진
-    partners: [hanjin]
-  - name: BGF
-    partners: [bgf]
-  - name: KT
-    partners: [kt]
-  - name: 쿠팡
-    partners: [coupang]
-  - name: 당근
-    partners: [daangn]
-  - name: 크래프톤
-    partners: [krafton]
-  - name: 농심
-    partners: [nongshim]
+  # 7. SKT/SK텔레콤·SK 계열 → SK하이닉스 → 티맵 등
+  - name: SK
+    partners: [sk, sk_hynix, tmap_mobility]
+  # 8. 한화 → 기타 계열사
   - name: 한화
     partners: [hanwha]
-  - name: 두나무
-    partners: [dunamu]
-  - name: 우아한형제들
-    partners: [woowahan]
-  - name: 쏘카
-    partners: [socar]
-  - name: 다음
-    partners: [daum]
-  - name: 업스테이지
-    partners: [upstage]
-  - name: 인스파이어리조트
-    partners: [inspire]
-  - name: 이디야
-    partners: [ediya]
-  - name: 빗썸
-    partners: [bithumb]
-  - name: 코빗
-    partners: [kobit]
-  - name: 메가박스
-    partners: [megabox]
-  - name: SBS
-    partners: [sbs]
-  - name: 하이브
-    partners: [hybe]
+  # 9. LG전자·생활건강·유플러스 → 기타
+  - name: LG
+    partners: [lg]
+  # 10. 카카오 → 카카오페이 → 엔터 등
+  - name: 카카오
+    partners: [kakao]
+  # 11. 그 외 트래킹 파트너
+  - name: 기타 회사
+    partners:
+      - shilla_dutyfree
+      - hotel_shilla
+      - korean_air
+      - hanjin
+      - bgf
+      - kt
+      - coupang
+      - daangn
+      - krafton
+      - nongshim
+      - dunamu
+      - woowahan
+      - socar
+      - daum
+      - upstage
+      - inspire
+      - ediya
+      - bithumb
+      - kobit
+      - megabox
+      - sbs
+      - hybe
 
 global_groups:
   - name: Meta
@@ -142,25 +132,26 @@ global_groups:
   - name: AMD
     partners: [amd]
 
-# 기존 flat 목록 (그룹 미사용 시 fallback)
+# 기존 flat 목록 (그룹 미사용 시 fallback) — domestic_groups 순서와 동일하게
 domestic:
   - samsung
-  - shilla_dutyfree
   - samsung_sds
-  - sk_hynix
-  - sk
-  - tmap_mobility
   - hyundai
-  - lg
   - hd_hyundai
-  - gs
-  - hotel_shilla
+  - lotte
   - shinsegae
   - starbucks
   - ebay
-  - lotte
-  - kakao
+  - gs
   - cj
+  - sk
+  - sk_hynix
+  - tmap_mobility
+  - hanwha
+  - lg
+  - kakao
+  - shilla_dutyfree
+  - hotel_shilla
   - korean_air
   - hanjin
   - bgf
@@ -169,7 +160,6 @@ domestic:
   - daangn
   - krafton
   - nongshim
-  - hanwha
   - dunamu
   - woowahan
   - socar

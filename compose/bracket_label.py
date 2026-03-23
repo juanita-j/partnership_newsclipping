@@ -95,7 +95,9 @@ def _build_candidates(group_headline: str, partner_ids: list[str]) -> list[str]:
     exclude |= set(_EXTRA_EXCLUDE_BY_HEADLINE.get(group_headline, frozenset()))
 
     uniq = [x for x in uniq if x not in exclude]
-    uniq.sort(key=len, reverse=True)
+    # 긴 문자열 우선(계열사 구분), 동일 길이면 YAML·파트너 정의 순서 유지
+    order = {x: i for i, x in enumerate(uniq)}
+    uniq.sort(key=lambda x: (-len(x), order[x]))
     return uniq
 
 
