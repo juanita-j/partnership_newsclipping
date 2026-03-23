@@ -7,6 +7,7 @@
 바이트댄스(틱톡)는 기업 전략과 무관한 범죄·재판 보도 별도 제외.
 연예인 일상·SNS·행사 화보 등 연예 스타일 기사 별도 제외.
 신규 매장 오픈·브랜드파워·특정 채널·유통/전선 계열사명 위주 기사 별도 제외.
+일부 키워드는 제목·본문 어디든 / 제목에만 있을 때 각각 제외.
 """
 from __future__ import annotations
 
@@ -90,7 +91,6 @@ EXCLUDE_KEYWORDS = [
     "현대위아",
     "LG이노텍",
     "LG화학",
-    "베스트샵",
     "투자자",
     "매도",
     "매수",
@@ -111,7 +111,6 @@ EXCLUDE_KEYWORDS = [
     "봉사",
     "주가 상향",
     "주가 전망",
-    "주주총회",
     # 매장 오픈·브랜드 지수·특정 채널·유통·전선 (요청 키워드)
     "신규 매장 오픈",
     "브랜드파워",
@@ -120,6 +119,44 @@ EXCLUDE_KEYWORDS = [
     "LS네트웍스",
     "LS전선",
     "금호현대",
+    # 제목 또는 본문 한 곳이라도 포함 시 제외 (요청)
+    "휴맥스",
+    "한화비전",
+    "한화엔진",
+    "한화에어로스페이스",
+    "뉴스브리핑",
+    "삼성바이오로직스",
+    "SK시그넷",
+    "SK바사",
+    "SK바이오사이언스",
+    "현대해상",
+    "신세계 프라퍼티",
+    "신세계프라퍼티",
+    "롯데오토옥션",
+    "KT에스테이트",
+    "삼성E&A",
+    "♥",
+    "신규 매장",
+]
+
+# 제목에만 포함돼도 제외 (본문만 해당이면 통과)
+EXCLUDE_TITLE_KEYWORDS = [
+    "패키지",
+    "주주총회",
+    "시총",
+    "시가총액",
+    "고래잇",
+    "주주가치",
+    "사외이사",
+    "사내이사",
+    "베스트샵",
+    "이사회",
+    "의장",
+    "소셜미디어",
+]
+
+EXCLUDE_TITLE_KEYWORD_VARIANTS = [
+    "시가 총액",
 ]
 
 # 띄어쓰기·표기 변형 (뉴스 본문에 자주 나오는 형태 — 위 키와 동일하게 제외)
@@ -130,6 +167,10 @@ EXCLUDE_KEYWORD_VARIANTS = [
     "LS 네트웍스",
     "LS 전선",
     "브랜드 파워",
+    "SK 바사",
+    "SK 바이오사이언스",
+    "SK 시그넷",
+    "삼성 E&A",
 ]
 
 
@@ -280,11 +321,15 @@ def _title_contains_partner(article: Article, partner_names: dict[str, list[str]
     return any(name in title for name in names)
 
 
-def _contains_exclude_keywords(text: str) -> bool:
-    """제외 키워드(코스피/코스닥/소액주주/특집기사 등)가 포함되면 True."""
+def _text_matches_keyword_lists(
+    text: str,
+    keywords: list[str],
+    variants: list[str],
+) -> bool:
+    """제목 또는 본문 등 주어진 문자열에 키워드·변형이 포함되면 True."""
     t_raw = text or ""
     t = _normalize_for_exclusion(t_raw)
-    for kw in EXCLUDE_KEYWORDS + EXCLUDE_KEYWORD_VARIANTS:
+    for kw in keywords + variants:
         if kw in t_raw:
             return True
         if kw in t:
@@ -292,9 +337,22 @@ def _contains_exclude_keywords(text: str) -> bool:
         kn = _normalize_for_exclusion(kw)
         if kn in t:
             return True
+    return False
+
+
+def _contains_exclude_keywords(text: str) -> bool:
+    """제목+본문 기준 제외 키워드(코스피/특정 계열사 등)가 포함되면 True."""
+    if _text_matches_keyword_lists(text, EXCLUDE_KEYWORDS, EXCLUDE_KEYWORD_VARIANTS):
+        return True
+    t = _normalize_for_exclusion(text or "")
     if _EXCLUDE_STOCK_WORD.search(t):
         return True
     return False
+
+
+def _contains_title_exclude_keywords(title: str) -> bool:
+    """제목에만 적용되는 제외 키워드(주총·시총·이사회 등)가 포함되면 True."""
+    return _text_matches_keyword_lists(title, EXCLUDE_TITLE_KEYWORDS, EXCLUDE_TITLE_KEYWORD_VARIANTS)
 
 
 def _is_airbnb_trivial_sensational(article: Article) -> bool:
@@ -391,7 +449,7 @@ def _is_entertainment_celeb_fluff(article: Article) -> bool:
 def filter_articles(articles: list[Article], keywords: list[str] | None = None) -> list[Article]:
     """
     키워드 1개 이상 포함 + 블로그 제외 + URL 중복 제거.
-    + 제목에 파트너사명 미포함 제외, 코스피/코스닥/소액주주/특집기사 등 제외 키워드 포함 시 제외.
+    + 제목에 파트너사명 미포함 제외, 제목·본문 제외 키워드·제목 전용 제외 키워드 적용.
     """
     if keywords is None:
         keywords = load_keywords()
@@ -413,6 +471,8 @@ def filter_articles(articles: list[Article], keywords: list[str] | None = None) 
         if not _title_contains_partner(a, partner_names):
             continue
         if _contains_exclude_keywords((a.title or "") + " " + (a.body or "")):
+            continue
+        if _contains_title_exclude_keywords(a.title or ""):
             continue
         if _is_airbnb_trivial_sensational(a):
             continue

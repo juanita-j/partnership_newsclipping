@@ -50,7 +50,7 @@ jobs:
 
       - name: 필터 모듈 검증 (제외 키워드가 CI 코드에 포함되는지)
         run: |
-          python -c "from filters.keyword_filter import EXCLUDE_KEYWORDS; must=['신규 매장 오픈','브랜드파워','CJ온스타일','CJ올리브네트웍스','LS네트웍스','LS전선','금호현대']; missing=[x for x in must if x not in EXCLUDE_KEYWORDS]; assert not missing, 'Missing: '+str(missing); print('OK exclude count=', len(EXCLUDE_KEYWORDS))"
+          python -c "from filters.keyword_filter import EXCLUDE_KEYWORDS, EXCLUDE_TITLE_KEYWORDS; must=['신규 매장 오픈','브랜드파워','CJ온스타일','CJ올리브네트웍스','LS네트웍스','LS전선','금호현대','휴맥스','삼성바이오로직스']; missing=[x for x in must if x not in EXCLUDE_KEYWORDS]; assert not missing, 'Missing: '+str(missing); must_t=['주주총회','베스트샵','시가총액']; missing_t=[x for x in must_t if x not in EXCLUDE_TITLE_KEYWORDS]; assert not missing_t, 'Missing title: '+str(missing_t); print('OK exclude=', len(EXCLUDE_KEYWORDS), 'title-only=', len(EXCLUDE_TITLE_KEYWORDS))"
 
       - name: Run batch
         env:
