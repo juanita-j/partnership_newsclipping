@@ -124,19 +124,20 @@ partners:
   - id: kobit
     names: [코빗]
   - id: google
-    names: [Google, 구글]
+    # 검색·제목 매칭: 브랜드·AI 서비스명 병기 (제목이 Gemini만 쓰는 경우 등)
+    names: [Google, Gemini, 구글, 제미나이]
   - id: microsoft
-    names: [Microsoft, 마이크로소프트]
+    names: [Microsoft, Copilot, 마이크로소프트, 코파일럿]
   - id: amazon
-    names: [Amazon, 아마존]
+    names: [Amazon, AWS, 아마존]
   - id: openai
-    names: [OpenAI, 오픈AI]
+    names: [ChatGPT, OpenAI, 챗GPT, 오픈AI, GPT-4, Sora, 소라]
   - id: perplexity
     names: [Perplexity, 퍼플렉시티]
   - id: anthropic
-    names: [Anthropic, 앤스로픽]
+    names: [Claude, Anthropic, 클로드, 앤스로픽]
   - id: deepseek
-    names: [Deepseek, 딥시크]
+    names: [DeepSeek, Deepseek, 딥시크]
   - id: apple
     names: [Apple, 애플]
   - id: tesla

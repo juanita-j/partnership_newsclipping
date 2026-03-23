@@ -6,7 +6,7 @@
 
 - **config/** – 파트너사 목록(`partners.yaml`), 키워드(`keywords.yaml`), 발송 설정(`sender.yaml`)
 - **collectors/** – 네이버 뉴스 API, Google News RSS 수집
-- **filters/** – 키워드 필터(주요 뉴스만), 블로그 제외, URL 중복 제거
+- **filters/** – 키워드 필터(주요 뉴스만), 블로그 제외, URL 중복 제거 (글로벌 빅테크·AI는 `keywords.yaml`의 `ai_bigtech` 및 `partners.yaml` 별칭으로 누락 완화)
 - **summarizers/** – LLM 기반 3~7줄 요약(OpenAI/Anthropic, 설정은 `config/summarizer.yaml`), 실패 시 규칙 기반 폴백
 - **compose/** – 회사별 HTML 메일 본문 생성
 - **sender/** – SMTP 메일 발송

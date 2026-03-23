@@ -3,6 +3,10 @@
 블로그 URL 제외, URL 기준 중복 제거.
 제목에 파트너사명 미포함·코스피/코스닥·공시/배당/주가·특집/리포트 등
 (신제품·전략·재무·사업 리스크 중심이 아닌) 관련도 낮은 기사·채용/공채/신입 뉴스 제외.
+에어비앤비(airbnb)는 숙소 화제·이색 흥미 위주 기사 별도 제외.
+바이트댄스(틱톡)는 기업 전략과 무관한 범죄·재판 보도 별도 제외.
+연예인 일상·SNS·행사 화보 등 연예 스타일 기사 별도 제외.
+신규 매장 오픈·브랜드파워·특정 채널·유통/전선 계열사명 위주 기사 별도 제외.
 """
 from __future__ import annotations
 
@@ -60,6 +64,9 @@ EXCLUDE_KEYWORDS = [
     # 공시·배당·산학·조사·리포트·콘텐츠 비본업 뉴스
     "공시",
     "배당",
+    "보수",
+    "급여",
+    "상여금",
     "산학협력",
     "설문조사",
     "트렌드 리포트",
@@ -68,10 +75,69 @@ EXCLUDE_KEYWORDS = [
     "채용",
     "공채",
     "신입",
+    # 주식·주가·증권·특정 계열사/행사·투자 거래 관련 (요청 키워드)
+    "주가",
+    "주가의",
+    "주가가",
+    "주가는",
+    "감원",
+    "SK증권",
+    "삼성증권",
+    "현대화",
+    "박람회",
+    "현대로템",
+    "현대위아",
+    "LG이노텍",
+    "LG화학",
+    "베스트샵",
+    "투자자",
+    "매도",
+    "매수",
+    "대회",
+    # 금융·계열사·스포츠·사회공헌 등 (요청 키워드)
+    "삼성에피스홀딩스",
+    "삼성생명",
+    "삼성화재",
+    "삼성SDI",
+    "삼성물산",
+    "어워즈",
+    "투자분석",
+    "채권",
+    "전북현대",
+    "현대차증권",
+    "증권",
+    "기부",
+    "봉사",
+    "주가 상향",
+    "주가 전망",
+    "주주총회",
+    # 매장 오픈·브랜드 지수·특정 채널·유통·전선 (요청 키워드)
+    "신규 매장 오픈",
+    "브랜드파워",
+    "CJ온스타일",
+    "CJ올리브네트웍스",
+    "LS네트웍스",
+    "LS전선",
+    "금호현대",
 ]
+
+# 제목+본문에서 제외: '주가'(EXCLUDE_KEYWORDS), '주식'(단 '주식회사' 법인표기는 통과), '주주총회'
+_EXCLUDE_STOCK_WORD = re.compile(r"주식(?!회사)")
 
 # 제목·본문에서 단어 경계로만 인정할 파트너 id (현재: 메타 — '메타비아'·'메타세쿼이아' 등 제외)
 _STANDALONE_KO_META_PARTNERS = frozenset({"meta"})
+
+# 제목에만 브랜드가 없고 본문 앞에만 나오는 경우가 많아, 제목+본문 앞부분으로 매칭
+_BIGTECH_TITLE_BODY_PARTNERS = frozenset({
+    "openai",
+    "google",
+    "microsoft",
+    "anthropic",
+    "perplexity",
+    "deepseek",
+    "amazon",
+})
+_BIGTECH_BODY_PREFIX_CHARS = 1500
 
 # 한글/영숫자 등 — 띄어쓰기 없이 붙으면 동일 단어로 보지 않음
 _BOUNDARY_OK = frozenset(
@@ -155,6 +221,7 @@ def _fallback_keywords() -> list[str]:
         "투자", "인수", "흡수", "합병", "매각", "주가", "실적", "분사", "재무", "계열사 정리", "구매",
         "지분", "지분교환", "상장", "기업공개", "IPO", "검토",
         "종료", "중단", "축소", "폐쇄", "폐지", "퇴출", "과징금", "규제", "고발", "항소", "피해", "공정위", "조사",
+        "ChatGPT", "OpenAI", "Gemini", "Claude", "Perplexity", "DeepSeek", "Anthropic", "Copilot", "LLM", "생성형 AI",
     ]
 
 
@@ -181,13 +248,17 @@ def load_partner_names() -> dict[str, list[str]]:
 
 
 def _title_contains_partner(article: Article, partner_names: dict[str, list[str]]) -> bool:
-    """제목에 해당 파트너사명이 1개 이상 들어가 있으면 True."""
+    """파트너사명이 제목(또는 빅테크는 제목+본문 앞부분)에 들어가 있으면 True."""
     names = partner_names.get(article.partner_id) or []
     if not names:
         return True
     title = article.title or ""
     if article.partner_id in _STANDALONE_KO_META_PARTNERS:
         return _meta_title_matches_partner_names(title, names)
+    if article.partner_id in _BIGTECH_TITLE_BODY_PARTNERS:
+        body = article.body or ""
+        head = title + "\n" + body[:_BIGTECH_BODY_PREFIX_CHARS]
+        return any(name in head for name in names)
     return any(name in title for name in names)
 
 
@@ -196,6 +267,99 @@ def _contains_exclude_keywords(text: str) -> bool:
     t = text or ""
     for kw in EXCLUDE_KEYWORDS:
         if kw in t:
+            return True
+    if _EXCLUDE_STOCK_WORD.search(t):
+        return True
+    return False
+
+
+def _is_airbnb_trivial_sensational(article: Article) -> bool:
+    """
+    에어비앤비(airbnb) 파트너 기사 중, 신기술·신사업·전략이 아닌
+    숙소 화제·공포/이색 체험·바이럴 흥미 위주 기사 제외.
+    """
+    if article.partner_id != "airbnb":
+        return False
+    title = article.title or ""
+    body = article.body or ""
+    t = f"{title}\n{body}"
+    tl = t.lower()
+
+    # 숙소 내 '숨겨진 공간/방' 류 화제 기사
+    if "숨겨진 공간" in t or "숨겨진 방" in t:
+        return True
+    if "천장 위" in t and "또 다른 방" in t:
+        return True
+    # 공포 영화 비유 + 숙박 맥락
+    if "공포 영화" in t or "공포영화" in t:
+        if any(x in t for x in ("숙소", "숙박", "에어비앤비")) or "airbnb" in tl:
+            return True
+    return False
+
+
+def _is_bytedance_crime_court_news(article: Article) -> bool:
+    """
+    틱톡/바이트댄스 키워드가 있어도, 살인·유기·재판 등 범죄 사건 보도는 기업 뉴스가 아님.
+    """
+    if article.partner_id != "bytedance":
+        return False
+    title = article.title or ""
+    body = article.body or ""
+    t = f"{title}\n{body}"
+    # 살해·유기 등 강한 범죄 표현
+    if "살해" in t or "시체유기" in t:
+        return True
+    if "시신" in t and "유기" in t:
+        return True
+    # '살인'은 '살인적' 등 비범죄 용어와 구분
+    if re.search(r"살인(?!적)", t) and any(
+        x in t for x in ("혐의", "징역", "유기", "구속", "검찰", "선고", "재판", "피고인", "기소")
+    ):
+        return True
+    if "징역" in t and ("선고" in t or "구형" in t or "집행유예" in t):
+        return True
+    return False
+
+
+def _is_entertainment_celeb_fluff(article: Article) -> bool:
+    """
+    연예인 일상·SNS·가족 나들이·화보·행사 포토 등 기업 뉴스와 무관한 연예 스타일 기사.
+    """
+    title = article.title or ""
+    body = article.body or ""
+    t = f"{title}\n{body}"
+
+    # 연예 스타일 제목 (하트 이모티콘)
+    if any(sym in title for sym in ("♥", "♡", "💖", "💕")):
+        return True
+    # SNS 보도 클리셰
+    if "소셜미디어를 통해" in t:
+        return True
+    # '기자] 배우/가수 …' 전형적 연예 리드
+    if re.search(r"기자\]\s*배우", body) or re.search(r"기자\]\s*가수", body):
+        return True
+    for phrase in (
+        "연예계",
+        "화보 촬영",
+        "레드카펫",
+        "팬사인회",
+        "열애설",
+        "결별",
+        "공개 연애",
+        "공개열애",
+        "데일리룩",
+        "행사에 참석",
+        "행사 참석",
+        "포토] 배우",
+        "포토] 가수",
+    ):
+        if phrase in t:
+            return True
+    # 인스타 일상 게시 + 연예인 언급
+    if "인스타그램" in t and any(
+        x in t for x in ("게재했다", "게시했다", "사진을 올렸", "사진을 공개", "글과 함께 사진")
+    ):
+        if any(x in t for x in ("배우", "가수", "연예인")):
             return True
     return False
 
@@ -225,6 +389,12 @@ def filter_articles(articles: list[Article], keywords: list[str] | None = None) 
         if not _title_contains_partner(a, partner_names):
             continue
         if _contains_exclude_keywords((a.title or "") + " " + (a.body or "")):
+            continue
+        if _is_airbnb_trivial_sensational(a):
+            continue
+        if _is_bytedance_crime_court_news(a):
+            continue
+        if _is_entertainment_celeb_fluff(a):
             continue
         seen_urls.add(norm_url)
         result.append(a)
