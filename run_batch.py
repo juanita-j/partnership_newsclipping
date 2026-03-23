@@ -17,6 +17,7 @@ from storage.last_send import get_since_for_collect, set_last_send_at
 from collectors.naver_news import NaverNewsCollector
 from collectors.google_news import GoogleNewsCollector
 from filters.keyword_filter import filter_articles
+from filters.partner_cap import apply_partner_caps
 from summarizers.summarizer import summarize_batch
 from compose.html_composer import build_html
 from compose.merge_same_topic import merge_by_topic
@@ -95,6 +96,11 @@ def run(dry_run: bool = False, use_llm: bool = True) -> bool:
 
     filtered = filter_articles(articles)
     print(f"[배치] 키워드 필터 후: {len(filtered)}")
+
+    before_cap = len(filtered)
+    filtered = apply_partner_caps(filtered)
+    if len(filtered) < before_cap:
+        print(f"[배치] 파트너별 상한 적용 후: {before_cap}→{len(filtered)} (LG·한화·KT·LS 등 config/partner_article_caps.yaml)")
 
     if not filtered:
         print("[배치] 발송할 기사 없음. 종료.")

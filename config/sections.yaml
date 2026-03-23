@@ -43,6 +43,7 @@ domestic_groups:
       - hanjin
       - bgf
       - kt
+      - ls
       - coupang
       - daangn
       - krafton
@@ -134,6 +135,7 @@ domestic:
   - hanjin
   - bgf
   - kt
+  - ls
   - coupang
   - daangn
   - krafton
