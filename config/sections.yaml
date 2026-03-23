@@ -29,8 +29,6 @@ domestic_groups:
     partners: [cj]
   - name: 대한항공
     partners: [korean_air]
-  - name: 아시아나
-    partners: [asiana]
   - name: 한진
     partners: [hanjin]
   - name: BGF
@@ -170,7 +168,6 @@ domestic:
   - kakao
   - cj
   - korean_air
-  - asiana
   - hanjin
   - bgf
   - ls

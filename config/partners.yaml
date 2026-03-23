@@ -37,8 +37,6 @@ partners:
     names: [CJ, CJ ENM, 올리브영, 대한통운, CGV]
   - id: korean_air
     names: [대한항공]
-  - id: asiana
-    names: [아시아나]
   - id: hanjin
     names: [한진칼]
   - id: bgf
