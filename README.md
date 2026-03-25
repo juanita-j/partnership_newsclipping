@@ -2,6 +2,8 @@
 
 특정 파트너사의 주요 뉴스 요약본을 메일로 받는 배치 프로젝트입니다.
 
+**인수인계·온보딩:** 프로그램을 처음 맡는 분은 **[docs/인수인계_가이드.md](docs/인수인계_가이드.md)** 를 먼저 읽으면 Cursor에서 수정·실행 흐름을 이해하기 쉽습니다.
+
 ## 구조
 
 - **config/** – 파트너사 목록(`partners.yaml`), 키워드(`keywords.yaml`), 파트너별 기사 상한(`partner_article_caps.yaml`), 사업 무관 오탐 제외(`partner_business_relevance.yaml`), 발송 설정(`sender.yaml`)
